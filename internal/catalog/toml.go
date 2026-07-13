@@ -14,6 +14,7 @@ import (
 	"github.com/polymorcodeus/book/internal/theme"
 )
 
+// VerifyExists reports whether a file or directory exists at the given path.
 func VerifyExists(filename string) (bool, error) {
 	_, err := os.Stat(filename)
 	if err == nil {
@@ -26,6 +27,7 @@ func VerifyExists(filename string) (bool, error) {
 	return false, err // remaining errors
 }
 
+// CreateTOML atomically writes a TOML file for the given TOMLFile.
 func CreateTOML(t book.TOMLFile) (err error) {
 	path := t.FileDetail()
 
@@ -59,10 +61,12 @@ func CreateTOML(t book.TOMLFile) (err error) {
 	return os.Rename(tmpPath, writePath)
 }
 
+// UpdateShelfFile persists the given shelf to its on-disk TOML file.
 func UpdateShelfFile(s *book.Shelf) error {
 	return CreateTOML(s)
 }
 
+// EnsureConfig creates the config file if it does not already exist.
 func EnsureConfig(c *book.Config) error {
 	exists, err := VerifyExists(c.ConfigFile)
 	if err != nil {
@@ -204,7 +208,7 @@ func resolveWritePath(path string) (string, error) {
 	return filepath.Join(realDir, filepath.Base(current)), nil
 }
 
-// DumpDefaultTheme serialises the built-in defaults as indented JSON.
+// DumpDefaults serialises the built-in theme or template defaults as indented JSON.
 func DumpDefaults(config *book.Config, dump string) (err error) {
 	var jsonData []byte
 	var (

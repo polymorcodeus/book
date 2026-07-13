@@ -1,3 +1,4 @@
+// Package cmd implements the book CLI.
 package cmd
 
 import (
@@ -23,10 +24,12 @@ var (
 	version = "internal"
 )
 
+// SetVersion sets the application version string used by the CLI.
 func SetVersion(v string) {
 	version = v
 }
 
+// Main builds and runs the book CLI application.
 func Main() {
 	var confirm bool
 	var interactive bool

@@ -1,3 +1,5 @@
+// Package catalog handles loading of shelf files and creating/writing of toml
+// and json files
 package catalog
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/polymorcodeus/book/internal/book"
 )
 
+// LoadShelves reads all shelf TOML files from disk into the given BookShelves.
 func LoadShelves(bs *book.BookShelves, config *book.Config) error {
 	globDir := fmt.Sprintf("%s/*.%s", config.ShelfRoot, config.CatalogFormat)
 	files, err := filepath.Glob(globDir)
@@ -35,6 +38,7 @@ func LoadShelves(bs *book.BookShelves, config *book.Config) error {
 	return nil
 }
 
+// LoadCatalog loads shelves with an optional spinner when running interactively.
 func LoadCatalog(bs *book.BookShelves, config *book.Config, interactive bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

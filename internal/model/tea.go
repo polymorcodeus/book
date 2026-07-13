@@ -1,3 +1,4 @@
+// Package model handles all bubble TUI components
 package model
 
 import (
@@ -12,6 +13,7 @@ import (
 
 const maxWidth = 120
 
+// Styles holds the pre-built lipgloss styles for the TUI.
 type Styles struct {
 	Base,
 	HeaderText,
@@ -29,6 +31,7 @@ type Styles struct {
 	Form lipgloss.Style
 }
 
+// NewStyles builds a Styles instance from the current theme configuration.
 func NewStyles(config *book.Config) *Styles {
 	s := Styles{}
 	s.Base = lipgloss.NewStyle().
@@ -67,6 +70,7 @@ type errMsg struct{ error }
 
 type shelfSavedMsg struct{}
 
+// Book is the shared TUI state container used by all screen models.
 type Book struct {
 	err     error
 	styles  *Styles
@@ -104,6 +108,7 @@ func (b Book) appErrorBoundaryView(text string) string {
 	)
 }
 
+// RootScreen wraps a tea.Model and delegates the BubbleTea lifecycle to it.
 type RootScreen struct {
 	Model tea.Model
 }
@@ -121,6 +126,7 @@ func (m RootScreen) View() tea.View {
 	return m.Model.View()
 }
 
+// SwitchScreen replaces the wrapped model and re-initializes it.
 func (m RootScreen) SwitchScreen(model tea.Model) (tea.Model, tea.Cmd) {
 	m.Model = model
 	return m.Model, m.Model.Init()

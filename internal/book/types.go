@@ -1,3 +1,4 @@
+// Package book data models, catalog theme and templates, and their methods
 package book
 
 import (
@@ -17,10 +18,12 @@ import (
 
 const errorBullet string = "󰯷" // "nf-md-alpha_e_box_outline
 
+// TOMLFile defines exportable TOML files
 type TOMLFile interface {
 	FileDetail() string
 }
 
+// Config holds internal application configuration settings, including loaded files
 type Config struct {
 	CatalogFormat string                  `toml:"catalog_format"`
 	ShelfRoot     string                  `toml:"shelf_directory"`
@@ -33,27 +36,29 @@ type Config struct {
 	Templates     map[string]ViewTemplate `toml:"-"`             // loaded at run time
 }
 
-func (c *Config) LoadTheme(interactive bool) error {
-	c.Theme = theme.NewTheme(&theme.ThemeConfig{})
+// LoadTheme loads the theme file or falls back to defaults.
+func (cfg *Config) LoadTheme(interactive bool) error {
+	cfg.Theme = theme.NewTheme(&theme.ThemeConfig{})
 
 	// load theme file or use defaults for TUI/interactive features
 	if interactive {
-		raw, err := theme.LoadThemeConfig(c.ThemeFile)
+		raw, err := theme.LoadThemeConfig(cfg.ThemeFile)
 		if err != nil {
 			return err
 		}
-		c.Theme = theme.NewTheme(raw) // nil raw = defaults
+		cfg.Theme = theme.NewTheme(raw) // nil raw = defaults
 	}
 	return nil
 }
 
-func (c *Config) LoadTemplates() error {
-	c.Templates = make(map[string]ViewTemplate)
+// LoadTemplates loads user template overrides on top of built-in defaults.
+func (cfg *Config) LoadTemplates() error {
+	cfg.Templates = make(map[string]ViewTemplate)
 
 	// Start with defaults
-	maps.Copy(c.Templates, DefaultViewTemplates)
+	maps.Copy(cfg.Templates, DefaultViewTemplates)
 
-	data, err := os.ReadFile(c.TemplateFile)
+	data, err := os.ReadFile(cfg.TemplateFile)
 	if os.IsNotExist(err) {
 		// Not an error — user hasn't customized, defaults are fine
 		return nil
@@ -69,7 +74,7 @@ func (c *Config) LoadTemplates() error {
 
 	// Overlay user partials onto defaults
 	for k, user := range userTmpls {
-		base, ok := c.Templates[k]
+		base, ok := cfg.Templates[k]
 		if !ok {
 			// Unknown key — skip or warn
 			continue
@@ -83,21 +88,23 @@ func (c *Config) LoadTemplates() error {
 		if user.ListTitle != "" {
 			base.ListTitle = user.ListTitle
 		}
-		c.Templates[k] = base
+		cfg.Templates[k] = base
 	}
 
 	return nil
 }
 
-func (c *Config) StyledError(e error) string {
-	if !c.Interactive {
+// StyledError returns a styled error string for interactive mode, or plain text otherwise.
+func (cfg *Config) StyledError(e error) string {
+	if !cfg.Interactive {
 		return e.Error()
 	}
 	// return styled error only in interactive mode
-	return c.Theme.Style("highlight").Render("HEAVENS TO MURGATROYD!") + "\n" +
-		c.Theme.Style("error").Render(errorBullet, e.Error())
+	return cfg.Theme.Style("highlight").Render("HEAVENS TO MURGATROYD!") + "\n" +
+		cfg.Theme.Style("error").Render(errorBullet, e.Error())
 }
 
+// FileConfig holds externally writable application configuration settings
 type FileConfig struct {
 	CatalogFormat string `toml:"catalog_format"`
 	ShelfRoot     string `toml:"shelf_directory"`
@@ -108,18 +115,22 @@ type FileConfig struct {
 	ConfigFile    string `toml:"-"`             // path to config file, typical BOOK_CONFIG
 }
 
+// FileDetail returns the file path used to create the config TOML file.
 func (f *FileConfig) FileDetail() string {
 	return f.ConfigFile
 }
 
+// BookShelves is the top-level container for all shelf data.
 type BookShelves []Shelf
 
+// AddShelf appends a new shelf to the collection.
 func (bs *BookShelves) AddShelf(shelf Shelf) {
 	// Dereference bs (*bs) to get the slice, append,
 	// and reassign the result to the dereferenced pointer
 	*bs = append(*bs, shelf)
 }
 
+// Shelf returns a shelf by name, or a zero-value Shelf if not found.
 func (bs *BookShelves) Shelf(s string) *Shelf {
 	for i := range *bs {
 		if (*bs)[i].Name == s {
@@ -129,6 +140,7 @@ func (bs *BookShelves) Shelf(s string) *Shelf {
 	return &Shelf{}
 }
 
+// ShelfNames returns the names of all loaded shelves.
 func (bs *BookShelves) ShelfNames() []string {
 	shelvesNames := make([]string, 0, len(*bs))
 	for _, p := range *bs {
@@ -137,6 +149,7 @@ func (bs *BookShelves) ShelfNames() []string {
 	return shelvesNames
 }
 
+// LoadParents sets back-pointers from marks to their parent shelf and collection.
 func (bs *BookShelves) LoadParents() {
 	// Loads Shelf and Collection pointers in Marks
 	for i := range *bs {
@@ -151,13 +164,13 @@ func (bs *BookShelves) LoadParents() {
 	}
 }
 
+// VerifyUniqueURL returns an error if the given ID already exists in any mark.
 func (bs *BookShelves) VerifyUniqueURL(id string) error {
 	for _, b := range *bs {
 		for _, c := range b.Collections {
 			for _, m := range c.Marks {
-				if m.Id == id {
-					errMessage := fmt.Sprintf("duplicate URL Found!\n\n%s", m.FullDetail())
-					return fmt.Errorf("%s", errMessage)
+				if m.ID == id {
+					return fmt.Errorf("duplicate URL Found!\n\n%s", m.FullDetail())
 				}
 			}
 		}
@@ -165,6 +178,7 @@ func (bs *BookShelves) VerifyUniqueURL(id string) error {
 	return nil
 }
 
+// Shelf is a named container for collections stored in a single TOML file.
 type Shelf struct {
 	Name        string `toml:"shelf_name" json:"shelf_name"`
 	Description string `toml:"shelf_desc,omitempty" json:"shelf_desc,omitempty"`
@@ -172,6 +186,7 @@ type Shelf struct {
 	FilePath    string `toml:"-" json:"-"`
 }
 
+// AddFileDetail sets the on-disk file path for the shelf based on its name.
 func (s *Shelf) AddFileDetail(c *Config) {
 	formattedName := strings.ReplaceAll(strings.TrimSpace(s.Name), " ", "_")
 	fileName := fmt.Sprintf("%s.%s", formattedName, c.CatalogFormat)
@@ -179,14 +194,17 @@ func (s *Shelf) AddFileDetail(c *Config) {
 	s.FilePath = filepath.Join(c.ShelfRoot, fileName)
 }
 
+// FileDetail returns the file path of the shelf's TOML file.
 func (s *Shelf) FileDetail() string {
 	return s.FilePath
 }
 
+// Collection returns a collection by name from the shelf.
 func (s *Shelf) Collection(c string) *Collection {
 	return s.Collections[c]
 }
 
+// AddCollection registers a collection in the shelf.
 func (s *Shelf) AddCollection(c *Collection) {
 	if s.Collections == nil {
 		s.Collections = make(map[string]*Collection)
@@ -194,6 +212,7 @@ func (s *Shelf) AddCollection(c *Collection) {
 	s.Collections[c.Name] = c
 }
 
+// CollectionsNames returns the names of all collections in the shelf, sorted.
 func (s *Shelf) CollectionsNames() []string {
 	names := make([]string, 0, len(s.Collections))
 	for name := range s.Collections {
@@ -203,6 +222,7 @@ func (s *Shelf) CollectionsNames() []string {
 	return names
 }
 
+// Collection is a named grouping of bookmarks within a shelf.
 type Collection struct {
 	Shelf       *Shelf  `toml:"-" json:"-"`
 	Name        string  `toml:"collection_name" json:"collection_name"`
@@ -210,6 +230,7 @@ type Collection struct {
 	Marks       []*Mark `toml:"marks" json:"marks"`
 }
 
+// MarksNames returns the names of all marks in the collection.
 func (c *Collection) MarksNames() []string {
 	markNames := make([]string, 0, len(c.Marks))
 	for _, m := range c.Marks {
@@ -218,6 +239,7 @@ func (c *Collection) MarksNames() []string {
 	return markNames
 }
 
+// AllTags returns every tag across all marks in the collection, sorted and deduplicated.
 func (c *Collection) AllTags() []string {
 	var tags []string
 	for _, m := range c.Marks {
@@ -227,6 +249,7 @@ func (c *Collection) AllTags() []string {
 	return tags
 }
 
+// Mark returns a mark by name from the collection.
 func (c *Collection) Mark(m string) *Mark {
 	for _, n := range c.Marks {
 		if n.Name == m {
@@ -236,34 +259,40 @@ func (c *Collection) Mark(m string) *Mark {
 	return nil
 }
 
+// AddMark appends a mark to the collection.
 func (c *Collection) AddMark(m *Mark) {
 	c.Marks = append(c.Marks, m)
 }
 
+// DeleteMark removes the given mark from the collection.
 func (c *Collection) DeleteMark(m *Mark) {
 	c.Marks = slices.DeleteFunc(c.Marks, func(d *Mark) bool {
 		return d == m
 	})
 }
 
+// Mark is a single bookmark with a title, URL, tags, and back-references.
 type Mark struct {
 	Shelf      *Shelf      `toml:"-" json:"-"`
 	Collection *Collection `toml:"-" json:"-"`
 
-	Id   string   `toml:"catalog_id" json:"catalog_id"`
+	ID   string   `toml:"catalog_id" json:"catalog_id"`
 	Name string   `toml:"title" json:"title"`
-	Url  string   `toml:"url" json:"url"`
+	URL  string   `toml:"url" json:"url"`
 	Tags []string `toml:"tags" json:"tags"`
 }
 
+// Description returns a human-readable summary of the mark.
 func (m *Mark) Description() string {
-	return fmt.Sprintf("Title: %s\nURL: %s\nTags: %s", m.Name, m.Url, strings.Join(m.Tags, ","))
+	return fmt.Sprintf("Title: %s\nURL: %s\nTags: %s", m.Name, m.URL, strings.Join(m.Tags, ","))
 }
 
+// FullDetail returns a verbose summary including shelf, collection, title, URL, and tags.
 func (m *Mark) FullDetail() string {
-	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", m.Shelf.Name, m.Collection.Name, m.Name, m.Url, strings.Join(m.Tags, ","))
+	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", m.Shelf.Name, m.Collection.Name, m.Name, m.URL, strings.Join(m.Tags, ","))
 }
 
+// DedupUnique concatenates and deduplicates multiple slices while preserving first-seen order.
 func DedupUnique[T comparable](slice ...[]T) []T {
 	merged := slices.Concat(slice...)
 	seen := make(map[T]struct{}, len(merged))
@@ -277,6 +306,7 @@ func DedupUnique[T comparable](slice ...[]T) []T {
 	return unique
 }
 
+// StructIsEmpty reports whether the given struct pointer is nil or contains only zero values.
 func StructIsEmpty[T any](ptr *T) bool {
 	if ptr == nil {
 		return true
@@ -289,6 +319,7 @@ func StructIsEmpty[T any](ptr *T) bool {
 	return val.IsZero()
 }
 
+// GenerateID returns the first 8 hex characters of the SHA-256 hash of a URL.
 func GenerateID(url string) string {
 	hash := sha256.Sum256([]byte(url))
 	// Return the first 8 characters of the hex representation
@@ -303,6 +334,7 @@ func MergeTags(sources ...[]string) []string {
 	return slices.DeleteFunc(merged, func(e string) bool { return e == "" })
 }
 
+// PrintCatalog serializes an item as JSON or TOML to stdout.
 func PrintCatalog[T any](item T, format string) error {
 	switch format {
 	case "json":

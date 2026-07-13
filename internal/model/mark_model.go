@@ -145,7 +145,7 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return editScreen, editScreen.Init()
 		case "get":
 			cmd = func() tea.Msg {
-				if err := web.OpenURL(m.get.mark.Url); err != nil {
+				if err := web.OpenURL(m.get.mark.URL); err != nil {
 					return errMsg{err}
 				}
 				return nil
@@ -202,7 +202,7 @@ func (m getMarkModel) View() tea.View {
 				if m.get.verifyMark() {
 					// Need to load selected mark for display
 					m.get.reloadMarkModel()
-					displayMark = m.get.mark.Name + "\n\n" + m.get.mark.Url + "\n\n" + lipglossList(s.None, m.get.mark.Tags) + "\n"
+					displayMark = m.get.mark.Name + "\n\n" + m.get.mark.URL + "\n\n" + lipglossList(s.None, m.get.mark.Tags) + "\n"
 				}
 			}
 		}
@@ -236,6 +236,7 @@ func (m getMarkModel) View() tea.View {
 	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
 }
 
+// GetMarkForm returns a TUI model for navigating shelves, collections, and marks.
 func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) getMarkModel {
 	m := markModel{book: &Book{width: maxWidth}}
 	m.book.styles = NewStyles(config)
@@ -401,7 +402,7 @@ func (m editMarkModel) View() tea.View {
 		currentCollection = s.StatusHeader.Render("Picked Collection") + "\n" + m.editor.mark.Collection.Name + "\n\n"
 
 		currentMark = s.StatusHeader.Render("Editing Mark") + "\n" + m.editor.mark.Name
-		currentMark += "\n\n" + m.editor.mark.Url + "\n\n" + lipglossList(s.None, m.editor.mark.Tags) + "\n"
+		currentMark += "\n\n" + m.editor.mark.URL + "\n\n" + lipglossList(s.None, m.editor.mark.Tags) + "\n"
 
 		const statusWidth = 68
 		statusMarginLeft := m.editor.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()

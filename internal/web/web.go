@@ -1,3 +1,5 @@
+// Package web is used to grep web title if not provided and handles basic
+// open method
 package web
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// OpenURL opens the given URL in the default browser.
 func OpenURL(url string) error {
 	switch runtime.GOOS {
 	case "windows":
@@ -24,6 +27,7 @@ func OpenURL(url string) error {
 	}
 }
 
+// WebsiteTitle fetches and extracts the page title from a URL.
 func WebsiteTitle(url string) (string, error) {
 	res, err := http.Get(url)
 	if err != nil {
@@ -47,6 +51,7 @@ func WebsiteTitle(url string) (string, error) {
 	}
 }
 
+// LoadWebsite fetches a page title with a spinner and 10-second timeout.
 func LoadWebsite(url string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
