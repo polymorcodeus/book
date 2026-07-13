@@ -1,0 +1,110 @@
+# GoReleaser configuration for book
+version: 2
+
+project_name: book
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # Optional: exclude specific combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.Date}}
+    main: ./main.go
+    binary: book
+
+archives:
+  - id: default
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+    builds_info:
+      group: root
+      owner: root
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - "^refactor:"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+# GitHub release configuration
+release:
+  github:
+    owner: polymorcodeus
+    name: book
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## book {{.Tag}}
+
+    lightweight git-native dotfiles management
+
+    ### Installation
+
+    ```bash
+    # Quick install
+    curl -sSL https://raw.githubusercontent.com/polymorcodeus/book/main/install.sh | bash
+
+    # Homebrew
+    # not yet supported
+
+    # Manual download
+    # Download the appropriate archive for your platform from the assets below
+    # Extract and move to your PATH:
+    # tar -xzf book_*.tar.gz && sudo mv book /usr/local/bin/
+    ```
+
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/polymorcodeus/book/compare/{{.PreviousTag}}...{{.Tag}}
+
+# Homebrew tap
