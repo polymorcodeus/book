@@ -116,7 +116,7 @@ func TestCreateTOMLAtomic(t *testing.T) {
 				Marks: []*book.Mark{
 					{
 						Name: "Example",
-						Url:  "https://example.com",
+						URL:  "https://example.com",
 						Tags: []string{"demo"},
 					},
 				},

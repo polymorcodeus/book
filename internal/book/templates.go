@@ -1,27 +1,39 @@
 package book
 
+// Templatable defines the view-model interface used to render TUI success screens.
 type Templatable interface {
 	Primary() string
 	Secondary() string
 	List() []string
 }
 
-// Template interface methods
-func (s *BookShelves) Primary() string   { return "" }
-func (s *BookShelves) Secondary() string { return "" }
-func (s *BookShelves) List() []string    { return s.ShelfNames() }
+// Primary returns an empty string for BookShelves.
+func (bs *BookShelves) Primary() string   { return "" }
+// Secondary returns an empty string for BookShelves.
+func (bs *BookShelves) Secondary() string { return "" }
+// List returns the names of all shelves.
+func (bs *BookShelves) List() []string    { return bs.ShelfNames() }
 
+// Primary returns the shelf name.
 func (s *Shelf) Primary() string   { return s.Name }
+// Secondary returns an empty string for Shelf.
 func (s *Shelf) Secondary() string { return "" }
+// List returns the names of all collections in the shelf.
 func (s *Shelf) List() []string    { return s.CollectionsNames() }
 
-func (s *Collection) Primary() string   { return s.Shelf.Name }
-func (s *Collection) Secondary() string { return s.Name }
-func (s *Collection) List() []string    { return s.MarksNames() }
+// Primary returns the parent shelf name.
+func (c *Collection) Primary() string   { return c.Shelf.Name }
+// Secondary returns the collection name.
+func (c *Collection) Secondary() string { return c.Name }
+// List returns the names of all marks in the collection.
+func (c *Collection) List() []string    { return c.MarksNames() }
 
-func (s *Mark) Primary() string   { return s.Name }
-func (s *Mark) Secondary() string { return s.Url }
-func (s *Mark) List() []string    { return s.Tags }
+// Primary returns the mark title.
+func (m *Mark) Primary() string   { return m.Name }
+// Secondary returns the mark URL.
+func (m *Mark) Secondary() string { return m.URL }
+// List returns the mark's tags.
+func (m *Mark) List() []string    { return m.Tags }
 
 // ViewTemplate used to templatize TUI success screens
 type ViewTemplate struct {
@@ -61,6 +73,7 @@ func markTemplate(primary string) ViewTemplate {
 	}
 }
 
+// DefaultViewTemplates provides the built-in TUI success-screen templates.
 var DefaultViewTemplates = map[string]ViewTemplate{
 	"shelf-list": {ListTitle: "You've knocked over all your shelves:"},
 	"shelf-add":  {PrimaryTitle: "You added shelf:", SecondaryTitle: "Along chosen collection:"},
@@ -76,6 +89,7 @@ var DefaultViewTemplates = map[string]ViewTemplate{
 	"mark-delete": markTemplate("To delete mark:"),
 }
 
+// UserViewTemplates holds user-defined template overrides loaded at runtime.
 var UserViewTemplates = map[string]ViewTemplate{}
 
 // GetTemplate merges user overrides over the default for a given key.

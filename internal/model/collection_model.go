@@ -123,7 +123,7 @@ func (m getCollectionModel) View() tea.View {
 	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
 }
 
-// To be used for editing descriptions/names in future
+// GetCollectionForm to be used for editing descriptions/names in future
 func GetCollectionForm(bs *book.BookShelves, config *book.Config, action string) getCollectionModel {
 	m := collectionModel{book: &Book{width: maxWidth}}
 	m.book.styles = NewStyles(config)

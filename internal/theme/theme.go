@@ -1,3 +1,5 @@
+// Package theme skins bubbletea components and other interactive views using
+// user provided theme.json or defaults if not present
 package theme
 
 import (
@@ -25,6 +27,7 @@ type ColorSpec struct {
 	Dark  string `json:"dark,omitempty"`
 }
 
+// UnmarshalJSON handles both string and object forms for a ColorSpec.
 func (c *ColorSpec) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
@@ -35,6 +38,7 @@ func (c *ColorSpec) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*alt)(c))
 }
 
+// IsAdaptive reports whether the ColorSpec has light/dark variants.
 func (c ColorSpec) IsAdaptive() bool {
 	return c.Light != "" || c.Dark != ""
 }
@@ -53,6 +57,7 @@ type StyleDef struct {
 	Reverse          bool   `json:"reverse,omitempty"`
 }
 
+// ThemeConfig is the raw JSON representation of a user theme.
 type ThemeConfig struct {
 	Palette map[string]ColorSpec `json:"palette"`
 	Styles  map[string]StyleDef  `json:"styles"`
@@ -63,6 +68,7 @@ type ThemeConfig struct {
 // Compiled Theme (immutable)
 // -----------------------------------------------------------------------------
 
+// Theme is a compiled, ready-to-use theme with resolved colors and styles.
 type Theme struct {
 	hasDarkBg      bool
 	colors         map[string]color.Color
@@ -70,6 +76,7 @@ type Theme struct {
 	huhDefinitions map[string]StyleDef
 }
 
+// NewTheme compiles a ThemeConfig into a Theme with resolved colors and styles.
 func NewTheme(cfg *ThemeConfig) *Theme {
 	if cfg == nil {
 		cfg = DefaultThemeConfig()
@@ -94,6 +101,7 @@ func NewTheme(cfg *ThemeConfig) *Theme {
 	return t
 }
 
+// Color looks up a named color from the palette, falling back to parsing the name as a literal color.
 func (t *Theme) Color(name string) color.Color {
 	if c, ok := t.colors[name]; ok {
 		return c
@@ -101,6 +109,7 @@ func (t *Theme) Color(name string) color.Color {
 	return parseLiteralColor(name)
 }
 
+// Style looks up a named style, returning an empty style if the name is not found.
 func (t *Theme) Style(name string) lipgloss.Style {
 	if s, ok := t.styles[name]; ok {
 		return s
@@ -108,6 +117,7 @@ func (t *Theme) Style(name string) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
+// HuhTheme returns a huh.ThemeFunc that overlays custom styles onto a base theme.
 func (t *Theme) HuhTheme(interactive bool) huh.ThemeFunc {
 	return huh.ThemeFunc(func(isDark bool) *huh.Styles {
 		base := huh.ThemeBase(isDark)
@@ -186,6 +196,7 @@ func (t *Theme) HuhTheme(interactive bool) huh.ThemeFunc {
 // File Loading
 // -----------------------------------------------------------------------------
 
+// LoadThemeConfig reads and parses a theme.json file into a ThemeConfig.
 func LoadThemeConfig(path string) (*ThemeConfig, error) {
 	if path == "" {
 		return nil, nil
@@ -210,6 +221,7 @@ func LoadThemeConfig(path string) (*ThemeConfig, error) {
 // Internal
 // -----------------------------------------------------------------------------
 
+// DefaultThemeConfig returns the built-in default theme configuration.
 func DefaultThemeConfig() *ThemeConfig {
 	return &ThemeConfig{
 		Palette: map[string]ColorSpec{

@@ -52,8 +52,8 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	}
 
 	mark := book.Mark{
-		Id:   id,
-		Url:  URL,
+		ID:   id,
+		URL:  URL,
 		Tags: strings.Split(tags, ","),
 	}
 
@@ -61,7 +61,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	if title != "" {
 		mark.Name = title
 	} else {
-		fetchedTitle, err := web.LoadWebsite(mark.Url)
+		fetchedTitle, err := web.LoadWebsite(mark.URL)
 		if err != nil {
 			return err
 		}
