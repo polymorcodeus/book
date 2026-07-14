@@ -1,0 +1,4 @@
+shelf_directory = "/Users/username/.config/book/shelf.d"
+catalog_format = "toml"
+autoconfirm = true
+interactive = true
