@@ -1,0 +1,29 @@
+shelf_name = "archive"
+shelf_desc = "where books get lost!"
+
+[Collections]
+  [Collections.alpha]
+    collection_name = "alpha"
+    collection_desc = "first collection for losing in the stacks"
+
+    [[Collections.alpha.marks]]
+      catalog_id = "569273e2"
+      title = "Example Article One"
+      url = "https://example.com/article-one"
+      tags = ["demo", "test"]
+
+  [Collections.beta]
+    collection_name = "beta"
+    collection_desc = "second collection collecting dust"
+
+    [[Collections.beta.marks]]
+      catalog_id = "0ff1faa4"
+      title = "Example Article Two"
+      url = "https://example.com/article-two"
+      tags = ["sample", "fixture"]
+
+    [[Collections.beta.marks]]
+      catalog_id = "d86b5744"
+      title = "Example Article Three"
+      url = "https://example.com/article-three"
+      tags = ["sample", "fixture", "demo"]

@@ -1,0 +1,14 @@
+{
+  "collection-list": {
+    "primary_title": "Congratulations! You picked shelf:",
+    "list_title": "With the auspicious list of collections:"
+  },
+  "mark-list": {
+    "primary_title": "Congratulations! You picked shelf:",
+    "secondary_title": "With the infamous collection:",
+    "list_title": "With the worrisome list of marks:"
+  },
+  "shelf-list": {
+    "list_title": "Congratulations! You've knocked over all your shelves:"
+  }
+}

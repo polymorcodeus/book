@@ -147,6 +147,10 @@ Config values resolve in this priority:
 3. TOML config file
 4. Hardcoded defaults
 
+## Example
+
+See example [config](example/book/config), [shelf](example/book/shelf.d/archive.toml), and [template](example/book/template.json) files.
+
 ## Customization
 
 ### Theme
