@@ -4,9 +4,9 @@
 
 **TUI bookmark manager for your terminal.**
 
-Organize bookmarks hierarchically: **Shelf** → **Collection** → **Mark**. Data is stored in plain TOML on disk so your bookmarks live in git, diff cleanly, and stay yours. Use the interactive TUI for browsing, or run non-interactively with flags for scripting. Bookmarks are stored in a dotfile manager friendly format, e.g. [polymorcodeus/lnk](https://github.com/polymorcodeus/lnk), such that you could differentiate between persona shelfs. Changes to shelves should be git-friendly and are intended to be human readable.
+Terminal bookmark manager with hierarchical organization (Shelf → Collection → Mark). Bookmarks are persisted as plain TOML, enabling version control, clean diffs, and [dotfile manager](https://github.com/polymorcodeus/lnk) integration. Supports both interactive TUI and non-interactive CLI modes for scripting.
 
-Likely be significant changes in a v1 release, including search and lazy loading, stable ids and potentially shelf → collection as atomic unit.
+v1 roadmap includes search, lazy loading, stable identifiers, and atomic shelf-collection operations.
 
 ## Quick Demo
 
