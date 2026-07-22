@@ -1,6 +1,13 @@
+<p align="center">
+  <source media="(prefers-color-scheme: dark)" srcset="images/book-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="images/book-light.png">
+  <img alt="Project Logo" src="images/book-dark.png" width="128">
+</p>
+
 # book
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/polymorcodeus/book)](https://go.dev/) [![License](https://img.shields.io/github/license/polymorcodeus/book)](./LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/polymorcodeus/book)](https://go.dev/) [![License](https://img.shields.io/github/license/polymorcodeus/book)](./LICENSE) [![Build Status](https://img.shields.io/github/actions/workflow/status/polymorcodeus/book/ci.yml?branch=main)](https://github.com/polymorcodeus/book/actions)
+
 
 **TUI bookmark manager for your terminal.**
 
