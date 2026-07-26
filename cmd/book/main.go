@@ -126,7 +126,7 @@ func Main() {
 			&cli.BoolFlag{
 				Name:        "interactive",
 				Value:       false,
-				Usage:       "set to true to enable TUI and other visual e",
+				Usage:       "set to true to enable TUI and other visuals",
 				Destination: &interactive,
 				Sources: cli.NewValueSourceChain(
 					alttoml.TOML("interactive", altsrc.NewStringPtrSourcer(&configFile)),
