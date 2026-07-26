@@ -268,7 +268,7 @@ func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, act
 					// Prevent empty collections from being loaded
 					var opts []string
 					for _, col := range bs.Shelf(chosenShelf).Collections {
-						if len(col.Marks) > 0 {
+						if (len(col.Marks) > 0 && action != "add") || action == "add" {
 							opts = append(opts, col.Name)
 						}
 					}
