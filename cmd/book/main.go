@@ -21,12 +21,26 @@ import (
 )
 
 var (
-	version = "internal"
+	version   = "internal"
+	buildTime string
 )
 
 // SetVersion sets the application version string used by the CLI.
 func SetVersion(v string) {
 	version = v
+}
+
+// SetBuildTime sets the build timestamp for version display.
+func SetBuildTime(bt string) {
+	buildTime = bt
+}
+
+func buildVersion() string {
+	v := version
+	if buildTime != "" {
+		v += " (" + buildTime + ")"
+	}
+	return v
 }
 
 // Main builds and runs the book CLI application.
@@ -55,7 +69,7 @@ func Main() {
 		Name:                  "book",
 		Usage:                 "mark ur life!",
 		Description:           "all your marks are belong to us ...",
-		Version:               version,
+		Version:               buildVersion(),
 		EnableShellCompletion: true,
 		HideVersion:           false,
 		Flags: []cli.Flag{
