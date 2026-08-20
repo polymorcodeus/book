@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -63,10 +64,16 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	} else {
 		fetchedTitle, err := web.LoadWebsite(mark.URL)
 		if err != nil {
-			return err
-		}
-		if fetchedTitle == "" {
-			mark.Name = "couldn't fetch page title"
+			if errors.Is(err, web.ErrTitleUnavailable) {
+				// Non-interactive path can't prompt for a title.
+				if shelfName != "" && collectionName != "" {
+					return fmt.Errorf("couldn't fetch title for %s; provide --title", mark.URL)
+				}
+				// Interactive path: leave the title empty so the user is
+				// forced to enter it manually in the edit form.
+			} else {
+				return err
+			}
 		} else {
 			mark.Name = fetchedTitle
 		}
