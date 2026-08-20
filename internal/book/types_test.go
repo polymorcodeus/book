@@ -198,7 +198,7 @@ func TestDeleteMark(t *testing.T) {
 		},
 		{
 			name:       "removes only exact pointer match",
-			start:      []*Mark{markA, &Mark{Name: "a"}},
+			start:      []*Mark{markA, {Name: "a"}},
 			remove:     markA,
 			wantNames:  []string{"a"},
 			wantLength: 1,
