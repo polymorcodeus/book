@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -99,6 +100,49 @@ func normalizeTOMLWhitespace(b []byte) []byte {
 		}
 	}
 	return bytes.Join(out, []byte("\n"))
+}
+
+// TestCollectionMapOrdering asserts that BurntSushi/toml encodes the
+// Collections map in a stable, deterministic order (alphabetical by key).
+// This pins down the current behavior so a library upgrade cannot silently
+// reshuffle the on-disk layout.
+func TestCollectionMapOrdering(t *testing.T) {
+	shelf := book.Shelf{
+		Name:        "ordering",
+		Description: "collection ordering test",
+		Collections: map[string]*book.Collection{
+			"zebra": {
+				Name:        "zebra",
+				Description: "last alphabetically",
+			},
+			"alpha": {
+				Name:        "alpha",
+				Description: "first alphabetically",
+			},
+			"mike": {
+				Name:        "mike",
+				Description: "middle alphabetically",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(shelf); err != nil {
+		t.Fatalf("encode shelf: %v", err)
+	}
+
+	output := buf.String()
+	alphaIdx := strings.Index(output, "[Collections.alpha]")
+	mikeIdx := strings.Index(output, "[Collections.mike]")
+	zebraIdx := strings.Index(output, "[Collections.zebra]")
+
+	if alphaIdx == -1 || mikeIdx == -1 || zebraIdx == -1 {
+		t.Fatalf("expected all collection sections in output:\n%s", output)
+	}
+
+	if alphaIdx >= mikeIdx || mikeIdx >= zebraIdx {
+		t.Errorf("collections not in alphabetical order; expected alpha < mike < zebra, got alpha=%d mike=%d zebra=%d\n%s", alphaIdx, mikeIdx, zebraIdx, output)
+	}
 }
 
 // TestCreateTOMLAtomic verifies that CreateTOML writes a temp file and
