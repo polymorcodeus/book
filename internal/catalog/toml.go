@@ -58,7 +58,23 @@ func CreateTOML(t book.TOMLFile) (err error) {
 		return err
 	}
 
-	return os.Rename(tmpPath, writePath)
+	if err = f.Sync(); err != nil {
+		return err
+	}
+
+	if err = os.Rename(tmpPath, writePath); err != nil {
+		return err
+	}
+
+	dir, err := os.Open(filepath.Dir(writePath))
+	if err != nil {
+		return err
+	}
+	if err = dir.Sync(); err != nil {
+		_ = dir.Close()
+		return err
+	}
+	return dir.Close()
 }
 
 // UpdateShelfFile persists the given shelf to its on-disk TOML file.

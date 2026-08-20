@@ -4,6 +4,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -15,11 +16,16 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// ErrTitleUnavailable is returned when a page title cannot be fetched
+// automatically (e.g. HTTP 403 or an empty <title> tag). Callers should
+// prompt the user to enter a title manually.
+var ErrTitleUnavailable = errors.New("couldn't fetch title")
+
 // OpenURL opens the given URL in the default browser.
 func OpenURL(url string) error {
 	switch runtime.GOOS {
 	case "windows":
-		return fmt.Errorf("yeah - this ain't gonna work on windows")
+		return exec.Command("cmd", "/c", "start", url).Start()
 	case "darwin":
 		return exec.Command("open", url).Start()
 	default:
@@ -41,9 +47,13 @@ func WebsiteTitle(url string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return strings.Join(strings.Fields(strings.TrimSpace(doc.Find("title").Text())), " "), nil
+		title := strings.Join(strings.Fields(strings.TrimSpace(doc.Find("title").Text())), " ")
+		if title == "" {
+			return "", ErrTitleUnavailable
+		}
+		return title, nil
 	case http.StatusForbidden:
-		return "", nil
+		return "", ErrTitleUnavailable
 	case http.StatusNotFound:
 		return "", fmt.Errorf("betta check yerself - that's a 4oh4!\n%s", url)
 	default:
@@ -63,13 +73,7 @@ func LoadWebsite(url string) (string, error) {
 		Context(ctx).
 		ActionWithErr(func(context.Context) error {
 			title, err = WebsiteTitle(url)
-			if err != nil {
-				return err
-			}
-			if title != "" {
-				return nil
-			}
-			return nil
+			return err
 		}).
 		Title("Loading mark title ...").
 		Type(spinner.Line).
