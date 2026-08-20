@@ -25,7 +25,7 @@ var ErrTitleUnavailable = errors.New("couldn't fetch title")
 func OpenURL(url string) error {
 	switch runtime.GOOS {
 	case "windows":
-		return fmt.Errorf("yeah - this ain't gonna work on windows")
+		return exec.Command("cmd", "/c", "start", url).Start()
 	case "darwin":
 		return exec.Command("open", url).Start()
 	default:
