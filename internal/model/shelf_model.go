@@ -370,6 +370,15 @@ func (m *shelfModel) updateShelfFileCmd(action string) tea.Cmd {
 			m.shelf.AddCollection(m.collection)
 			m.shelf.AddFileDetail(m.config)
 
+			now := book.NowTimestamp()
+			m.shelf.SchemaVersion = ptrInt(2)
+			m.shelf.ID = book.GenerateShelfID(m.shelf.Name)
+			m.shelf.CreatedAt = now
+			m.shelf.UpdatedAt = now
+			m.collection.ID = book.GenerateCollectionID(m.shelf.Name, m.collection.Name)
+			m.collection.CreatedAt = now
+			m.collection.UpdatedAt = now
+
 			if err := catalog.UpdateShelfFile(m.shelf); err != nil {
 				return errMsg{err}
 			}

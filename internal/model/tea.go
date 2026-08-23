@@ -165,6 +165,11 @@ func renderCompletedView(s *Styles, tmpls map[string]book.ViewTemplate, key stri
 	return tea.NewView(s.StatusBox.Render(b.String()) + "\n")
 }
 
+// ptrInt returns a pointer to the given int value.
+func ptrInt(v int) *int {
+	return &v
+}
+
 func renderView(styles *Styles, tmpl book.ViewTemplate, entity book.Templatable) string {
 	var b strings.Builder
 

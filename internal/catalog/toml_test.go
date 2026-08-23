@@ -102,6 +102,94 @@ func normalizeTOMLWhitespace(b []byte) []byte {
 	return bytes.Join(out, []byte("\n"))
 }
 
+// fixtureV2TOML is the v2 schema equivalent of fixtureTOML with IDs and
+// timestamps on every entity and a top-level schema_version key.
+const fixtureV2TOML = `schema_version = 2
+shelf_id = "0eb3e36b"
+shelf_name = "archive"
+shelf_desc = "where books go to die!"
+created_at = "2026-08-20T12:00:00Z"
+updated_at = "2026-08-20T12:00:00Z"
+
+[Collections]
+  [Collections.powash311]
+    collection_id = "6d264600"
+    collection_name = "powash311"
+    collection_desc = "pow pow powashell"
+    created_at = "2026-08-20T12:00:00Z"
+    updated_at = "2026-08-20T12:00:00Z"
+
+    [[Collections.powash311.marks]]
+      catalog_id = "21f96eef"
+      title = "counteractive/o365beat: Elastic Beat for fetching and shipping Office 365 audit events"
+      url = "https://github.com/counteractive/o365beat"
+      tags = ["powershell", "windows"]
+      created_at = "2026-08-20T12:00:00Z"
+      updated_at = "2026-08-20T12:00:00Z"
+
+    [[Collections.powash311.marks]]
+      catalog_id = "e1c3808c"
+      title = "Introduction to Testing Your PowerShell Code with Pester - Simple Talk"
+      url = "https://www.red-gate.com/simple-talk/sysadmin/powershell/introduction-to-testing-your-powershell-code-with-pester/"
+      tags = ["powershell", "windows"]
+      created_at = "2026-08-20T12:00:00Z"
+      updated_at = "2026-08-20T12:00:00Z"
+
+  [Collections.swyfty]
+    collection_id = "3d8b97ac"
+    collection_name = "swyfty"
+    collection_desc = "getting schhwifty"
+    created_at = "2026-08-20T12:00:00Z"
+    updated_at = "2026-08-20T12:00:00Z"
+
+    [[Collections.swyfty.marks]]
+      catalog_id = "fde869ba"
+      title = "Make an API call - Box Developer Documentation"
+      url = "https://developer.box.com/guides/mobile/ios/quick-start/make-api-call/"
+      tags = ["swift", "ios", "api"]
+      created_at = "2026-08-20T12:00:00Z"
+      updated_at = "2026-08-20T12:00:00Z"
+
+    [[Collections.swyfty.marks]]
+      catalog_id = "9af83e1a"
+      title = "Implement an API client in Swift using Generics, Codable and Combine | by Marina Sauca | Mac O’Clock | Medium"
+      url = "https://medium.com/macoclock/swift-generic-api-854afdb9315e"
+      tags = ["swift", "ios", "api"]
+      created_at = "2026-08-20T12:00:00Z"
+      updated_at = "2026-08-20T12:00:00Z"
+`
+
+// TestRoundTripIdempotencyV2 decodes a v2 fixture TOML, re-encodes it, and
+// asserts the bytes are identical. This mirrors TestRoundTripIdempotency for
+// the v2 schema.
+func TestRoundTripIdempotencyV2(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	fixturePath := filepath.Join(tmpDir, "fixture_v2.toml")
+	if err := os.WriteFile(fixturePath, []byte(fixtureV2TOML), 0644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	var shelf book.Shelf
+	if _, err := toml.DecodeFile(fixturePath, &shelf); err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(shelf); err != nil {
+		t.Fatalf("encode shelf: %v", err)
+	}
+
+	want := normalizeTOMLWhitespace([]byte(fixtureV2TOML))
+	got := normalizeTOMLWhitespace(buf.Bytes())
+
+	if !bytes.Equal(got, want) {
+		t.Logf("want (%d bytes):\n%s", len(want), want)
+		t.Logf("got  (%d bytes):\n%s", len(got), got)
+		t.Errorf("round-trip mismatch: see logged output above")
+	}
+}
+
 // TestCollectionMapOrdering asserts that BurntSushi/toml encodes the
 // Collections map in a stable, deterministic order (alphabetical by key).
 // This pins down the current behavior so a library upgrade cannot silently

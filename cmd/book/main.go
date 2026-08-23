@@ -397,6 +397,16 @@ func Main() {
 				},
 			},
 			{
+				Name:  "migrate",
+				Usage: "migrate shelf TOML files from v1 to v2 schema",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					if err := migrate(config); err != nil {
+						return cli.Exit(config.StyledError(err), 1)
+					}
+					return nil
+				},
+			},
+			{
 				Name:  "catalog",
 				Usage: "options for catalog - e.g. admin + customization",
 				Commands: []*cli.Command{

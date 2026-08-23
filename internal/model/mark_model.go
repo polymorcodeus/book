@@ -57,11 +57,23 @@ func (m *markModel) loadMarkParents() {
 
 func (m *markModel) updateShelfFileCmd(action string) tea.Cmd {
 	return func() tea.Msg {
+		now := book.NowTimestamp()
 		if action == "add" {
+			m.mark.CreatedAt = now
+			m.mark.UpdatedAt = now
 			m.mark.Collection.AddMark(m.mark)
+		}
+		if action == "edit" {
+			m.mark.UpdatedAt = now
 		}
 		if action == "delete" {
 			m.mark.Collection.DeleteMark(m.mark)
+		}
+		if m.mark.Collection.UpdatedAt != "" {
+			m.mark.Collection.UpdatedAt = now
+		}
+		if m.mark.Shelf.IsV2() {
+			m.mark.Shelf.UpdatedAt = now
 		}
 		if err := catalog.UpdateShelfFile(m.mark.Shelf); err != nil {
 			return errMsg{err}

@@ -91,6 +91,15 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 		}
 		mark.Shelf = shelf
 		mark.Collection = collection
+		now := book.NowTimestamp()
+		mark.CreatedAt = now
+		mark.UpdatedAt = now
+		if collection.UpdatedAt != "" {
+			collection.UpdatedAt = now
+		}
+		if shelf.IsV2() {
+			shelf.UpdatedAt = now
+		}
 		collection.AddMark(&mark)
 		if err := catalog.UpdateShelfFile(shelf); err != nil {
 			return err

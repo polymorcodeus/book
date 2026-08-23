@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/polymorcodeus/book/internal/theme"
@@ -180,10 +181,14 @@ func (bs *BookShelves) VerifyUniqueURL(id string) error {
 
 // Shelf is a named container for collections stored in a single TOML file.
 type Shelf struct {
-	Name        string `toml:"shelf_name" json:"shelf_name"`
-	Description string `toml:"shelf_desc,omitempty" json:"shelf_desc,omitempty"`
-	Collections map[string]*Collection
-	FilePath    string `toml:"-" json:"-"`
+	SchemaVersion *int   `toml:"schema_version,omitempty" json:"schema_version,omitempty"`
+	ID            string `toml:"shelf_id,omitempty" json:"shelf_id,omitempty"`
+	Name          string `toml:"shelf_name" json:"shelf_name"`
+	Description   string `toml:"shelf_desc,omitempty" json:"shelf_desc,omitempty"`
+	CreatedAt     string `toml:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt     string `toml:"updated_at,omitempty" json:"updated_at,omitempty"`
+	Collections   map[string]*Collection
+	FilePath      string `toml:"-" json:"-"`
 }
 
 // AddFileDetail sets the on-disk file path for the shelf based on its name.
@@ -197,6 +202,11 @@ func (s *Shelf) AddFileDetail(c *Config) {
 // FileDetail returns the file path of the shelf's TOML file.
 func (s *Shelf) FileDetail() string {
 	return s.FilePath
+}
+
+// IsV2 reports whether the shelf uses the v2 schema (has schema_version set).
+func (s *Shelf) IsV2() bool {
+	return s.SchemaVersion != nil && *s.SchemaVersion >= 2
 }
 
 // Collection returns a collection by name from the shelf.
@@ -225,8 +235,11 @@ func (s *Shelf) CollectionsNames() []string {
 // Collection is a named grouping of bookmarks within a shelf.
 type Collection struct {
 	Shelf       *Shelf  `toml:"-" json:"-"`
+	ID          string  `toml:"collection_id,omitempty" json:"collection_id,omitempty"`
 	Name        string  `toml:"collection_name" json:"collection_name"`
 	Description string  `toml:"collection_desc,omitempty" json:"collection_desc,omitempty"`
+	CreatedAt   string  `toml:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt   string  `toml:"updated_at,omitempty" json:"updated_at,omitempty"`
 	Marks       []*Mark `toml:"marks" json:"marks"`
 }
 
@@ -276,10 +289,13 @@ type Mark struct {
 	Shelf      *Shelf      `toml:"-" json:"-"`
 	Collection *Collection `toml:"-" json:"-"`
 
-	ID   string   `toml:"catalog_id" json:"catalog_id"`
-	Name string   `toml:"title" json:"title"`
-	URL  string   `toml:"url" json:"url"`
-	Tags []string `toml:"tags" json:"tags"`
+	ID        string   `toml:"catalog_id" json:"catalog_id"`
+	Name      string   `toml:"title" json:"title"`
+	URL       string   `toml:"url" json:"url"`
+	Tags      []string `toml:"tags" json:"tags"`
+	CreatedAt string   `toml:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt string   `toml:"updated_at,omitempty" json:"updated_at,omitempty"`
+	DeletedAt string   `toml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
 }
 
 // Description returns a human-readable summary of the mark.
@@ -324,6 +340,22 @@ func GenerateID(url string) string {
 	hash := sha256.Sum256([]byte(url))
 	// Return the first 8 characters of the hex representation
 	return fmt.Sprintf("%x", hash)[:8]
+}
+
+// GenerateShelfID returns a deterministic ID for a shelf from its name.
+func GenerateShelfID(name string) string {
+	return GenerateID(name)
+}
+
+// GenerateCollectionID returns a deterministic ID for a collection from its
+// shelf name and collection name.
+func GenerateCollectionID(shelfName, collectionName string) string {
+	return GenerateID(shelfName + "/" + collectionName)
+}
+
+// NowTimestamp returns the current UTC time formatted as RFC3339.
+func NowTimestamp() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 // MergeTags combines multiple tag slices, deduplicates, removes empty strings,
