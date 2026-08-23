@@ -2,7 +2,9 @@ package book
 
 import (
 	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestDedupUnique(t *testing.T) {
@@ -254,6 +256,67 @@ func TestGenerateID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateShelfID(t *testing.T) {
+	name := "my shelf"
+	want := GenerateID(name)
+	got := GenerateShelfID(name)
+	if got != want {
+		t.Errorf("GenerateShelfID(%q) = %q, want %q", name, got, want)
+	}
+}
+
+func TestGenerateCollectionID(t *testing.T) {
+	shelfName := "my shelf"
+	collectionName := "my collection"
+	want := GenerateID(shelfName + "/" + collectionName)
+	got := GenerateCollectionID(shelfName, collectionName)
+	if got != want {
+		t.Errorf("GenerateCollectionID(%q, %q) = %q, want %q", shelfName, collectionName, got, want)
+	}
+}
+
+func TestNowTimestamp(t *testing.T) {
+	before := time.Now().UTC().Add(-time.Second)
+	got := NowTimestamp()
+	after := time.Now().UTC().Add(time.Second)
+
+	parsed, err := time.Parse(time.RFC3339, got)
+	if err != nil {
+		t.Fatalf("NowTimestamp() returned unparseable value %q: %v", got, err)
+	}
+	if parsed.Before(before) || parsed.After(after) {
+		t.Errorf("NowTimestamp() = %q, not within [%s, %s]", got, before.Format(time.RFC3339), after.Format(time.RFC3339))
+	}
+	if !strings.HasSuffix(got, "Z") {
+		t.Errorf("NowTimestamp() = %q, expected UTC suffix 'Z'", got)
+	}
+}
+
+func TestShelfIsV2(t *testing.T) {
+	cases := []struct {
+		name   string
+		shelf  Shelf
+		wantV2 bool
+	}{
+		{"nil schema version", Shelf{}, false},
+		{"v1 schema version", Shelf{SchemaVersion: intPtr(1)}, false},
+		{"v2 schema version", Shelf{SchemaVersion: intPtr(2)}, true},
+		{"v3 schema version", Shelf{SchemaVersion: intPtr(3)}, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.shelf.IsV2(); got != tc.wantV2 {
+				t.Errorf("IsV2() = %t, want %t", got, tc.wantV2)
+			}
+		})
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
 }
 
 func TestMergeTags(t *testing.T) {
