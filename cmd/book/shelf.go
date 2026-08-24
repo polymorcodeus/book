@@ -7,14 +7,19 @@ import (
 )
 
 func shelves(bs *book.BookShelves, format string, config *book.Config) error {
-	var err error
-
 	if !config.Interactive {
-		return book.PrintCatalog(bs.ShelfNames(), format)
-	} else {
-		_, err = tea.NewProgram(shelfRootScreen(bs, "list", config)).Run()
+		idx, err := syncIndex(config)
+		if err != nil {
+			return err
+		}
+		names, err := idx.ShelfNames()
+		if err != nil {
+			return err
+		}
+		return book.PrintCatalog(names, format)
 	}
 
+	_, err := tea.NewProgram(shelfRootScreen(bs, "list", config)).Run()
 	return err
 }
 

@@ -45,6 +45,12 @@ func buildVersion() string {
 
 // Main builds and runs the book CLI application.
 func Main() {
+	defer func() {
+		if index != nil {
+			_ = index.Close()
+		}
+	}()
+
 	var confirm bool
 	var interactive bool
 	var format string
@@ -404,6 +410,32 @@ func Main() {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
+				},
+			},
+			{
+				Name:  "index",
+				Usage: "manage the derived SQLite search index",
+				Commands: []*cli.Command{
+					{
+						Name:  "rebuild",
+						Usage: "wipe and rebuild the index from shelf TOML files",
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							if err := runIndexRebuild(config); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
+						},
+					},
+					{
+						Name:  "sync",
+						Usage: "reconcile the index with changes to shelf TOML files",
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							if err := runIndexSync(config); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
+						},
+					},
 				},
 			},
 			{

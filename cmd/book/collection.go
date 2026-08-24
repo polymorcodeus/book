@@ -1,27 +1,26 @@
 package cmd
 
 import (
-	"fmt"
-
 	tea "charm.land/bubbletea/v2"
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/model"
 )
 
 func collections(bs *book.BookShelves, shelfName string, format string, config *book.Config) error {
-	var err error
-
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && !config.Interactive {
-		shelf := bs.Shelf(shelfName)
-		if shelf == nil || book.StructIsEmpty(shelf) {
-			return fmt.Errorf("shelf %q not found", shelfName)
+		idx, err := syncIndex(config)
+		if err != nil {
+			return err
 		}
-		return book.PrintCatalog(shelf.CollectionsNames(), format)
-	} else {
-		_, err = tea.NewProgram(collectionRootScreen(bs, "list", config)).Run()
+		names, err := idx.CollectionNames(shelfName)
+		if err != nil {
+			return err
+		}
+		return book.PrintCatalog(names, format)
 	}
 
+	_, err := tea.NewProgram(collectionRootScreen(bs, "list", config)).Run()
 	return err
 }
 

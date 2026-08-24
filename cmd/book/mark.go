@@ -21,15 +21,14 @@ func mark(bs *book.BookShelves, config *book.Config) error {
 func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, config *book.Config) error {
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && collectionName != "" && !config.Interactive {
-		shelf := bs.Shelf(shelfName)
-		if shelf == nil || book.StructIsEmpty(shelf) {
-			return fmt.Errorf("shelf %q not found", shelfName)
+		idx, err := syncIndex(config)
+		if err != nil {
+			return err
 		}
-		collection := shelf.Collection(collectionName)
-		if collection == nil || book.StructIsEmpty(collection) {
-			return fmt.Errorf("collection %q not found in shelf %q", collectionName, shelfName)
+		collection, err := idx.Collection(shelfName, collectionName)
+		if err != nil {
+			return err
 		}
-
 		return book.PrintCatalog(collection, format)
 	}
 	_, err := tea.NewProgram(markRootScreen(bs, &book.Mark{}, "list", config)).Run()
