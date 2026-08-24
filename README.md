@@ -13,7 +13,7 @@
 
 Terminal bookmark manager with hierarchical organization (Shelf → Collection → Mark). Bookmarks are persisted as plain TOML, enabling version control, clean diffs, and [dotfile manager](https://github.com/polymorcodeus/lnk) integration. Supports both interactive TUI and non-interactive CLI modes for scripting.
 
-v1 roadmap includes search, lazy loading, stable identifiers, and atomic shelf-collection operations.
+The roadmap includes search, lazy loading, stable identifiers, and atomic shelf-collection operations.
 
 ## Quick Demo
 
@@ -95,10 +95,13 @@ $XDG_CONFIG_HOME/book/
 ### TOML Shelf File Format
 
 ```toml
+schema_version = 2
+shelf_id = "a0d6e1c2"
 shelf_name = "dev"
 shelf_desc = "software development bookmarks"
 
 [Collections.docs]
+collection_id = "6d264600"
 collection_name = "docs"
 collection_desc = "language and framework docs"
 
@@ -112,6 +115,7 @@ collection_desc = "language and framework docs"
 - `catalog_id` is a stable URL hash — duplicates are rejected across the entire catalog.
 - Collections are keyed by name inside the `[Collections]` table.
 - Marks are inline arrays-of-tables per collection.
+- `schema_version` is the on-disk data format version (`2`), independent of the tool's release version (v1.x). `book migrate` upgrades older v1 files in place.
 
 ## Commands
 
