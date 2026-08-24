@@ -174,20 +174,11 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m getMarkModel) View() tea.View {
+	if m.get.book.form.State == huh.StateCompleted || m.get.book.width <= 0 {
+		return altScreenView("")
+	}
+
 	s := m.get.book.styles
-	t := m.get.book.tmpls
-
-	if m.action == "get" && m.get.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "mark-get", m.get.mark)
-	}
-
-	if m.action == "list" && m.get.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "mark-list", m.get.collection)
-	}
-
-	if m.action == "delete" && m.get.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "mark-delete", m.get.collection)
-	}
 
 	// Form (left side)
 	v := strings.TrimSuffix(m.get.book.form.View(), "\n\n")
@@ -222,13 +213,7 @@ func (m getMarkModel) View() tea.View {
 		currentCollection = lipglossDimmer(s.StatusHeader, "Picked Collection", displayCollection)
 		currentMark = lipglossDimmer(s.StatusHeader, "Picked Mark", displayMark)
 
-		const statusWidth = 68
-		statusMarginLeft := m.get.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-		status = s.Status.
-			Height(28).
-			Width(statusWidth).
-			MarginLeft(statusMarginLeft).
-			Render(currentShelf + currentCollection + currentMark)
+		status = m.get.book.statusPanel(form, currentShelf+currentCollection+currentMark, 28)
 	}
 
 	errors := m.get.book.form.Errors()
@@ -245,12 +230,31 @@ func (m getMarkModel) View() tea.View {
 	if len(errors) > 0 {
 		footer = m.get.book.appErrorBoundaryView("")
 	}
-	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m getMarkModel) ResultView() string {
+	if m.get.book.form.State != huh.StateCompleted {
+		return ""
+	}
+	s := m.get.book.styles
+	t := m.get.book.tmpls
+	switch m.action {
+	case "get":
+		return renderCompletedView(s, t, "mark-get", m.get.mark).Content
+	case "list":
+		return renderCompletedView(s, t, "mark-list", m.get.collection).Content
+	case "delete":
+		return renderCompletedView(s, t, "mark-delete", m.get.collection).Content
+	}
+	return ""
 }
 
 // GetMarkForm returns a TUI model for navigating shelves, collections, and marks.
 func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) getMarkModel {
-	m := markModel{book: &Book{width: maxWidth}}
+	m := markModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs
@@ -384,16 +388,11 @@ func (m editMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m editMarkModel) View() tea.View {
+	if m.editor.book.form.State == huh.StateCompleted || m.editor.book.width <= 0 {
+		return altScreenView("")
+	}
+
 	s := m.editor.book.styles
-	t := m.editor.book.tmpls
-
-	if m.action == "add" && m.editor.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "mark-add", m.editor.mark)
-	}
-
-	if m.action == "edit" && m.editor.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "mark-edit", m.editor.mark)
-	}
 
 	// Form (left side)
 	v := strings.TrimSuffix(m.editor.book.form.View(), "\n\n")
@@ -416,13 +415,7 @@ func (m editMarkModel) View() tea.View {
 		currentMark = s.StatusHeader.Render("Editing Mark") + "\n" + m.editor.mark.Name
 		currentMark += "\n\n" + m.editor.mark.URL + "\n\n" + lipglossList(s.None, m.editor.mark.Tags) + "\n"
 
-		const statusWidth = 68
-		statusMarginLeft := m.editor.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-		status = s.Status.
-			Height(28).
-			Width(statusWidth).
-			MarginLeft(statusMarginLeft).
-			Render(currentShelf + currentCollection + currentMark)
+		status = m.editor.book.statusPanel(form, currentShelf+currentCollection+currentMark, 28)
 	}
 
 	errors := m.editor.book.form.Errors()
@@ -436,11 +429,28 @@ func (m editMarkModel) View() tea.View {
 	if len(errors) > 0 {
 		footer = m.editor.book.appErrorBoundaryView("")
 	}
-	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m editMarkModel) ResultView() string {
+	if m.editor.book.form.State != huh.StateCompleted {
+		return ""
+	}
+	s := m.editor.book.styles
+	t := m.editor.book.tmpls
+	switch m.action {
+	case "add":
+		return renderCompletedView(s, t, "mark-add", m.editor.mark).Content
+	case "edit":
+		return renderCompletedView(s, t, "mark-edit", m.editor.mark).Content
+	}
+	return ""
 }
 
 func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) editMarkModel {
-	m := markModel{book: &Book{width: maxWidth}}
+	m := markModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs

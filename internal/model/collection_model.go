@@ -75,12 +75,11 @@ func (m getCollectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m getCollectionModel) View() tea.View {
-	s := m.get.book.styles
-	t := m.get.book.tmpls
-
-	if m.action == "list" && m.get.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "collection-list", m.get.shelf)
+	if m.get.book.form.State == huh.StateCompleted || m.get.book.width <= 0 {
+		return altScreenView("")
 	}
+
+	s := m.get.book.styles
 
 	// Form (left side)
 	v := strings.TrimSuffix(m.get.book.form.View(), "\n\n")
@@ -100,13 +99,7 @@ func (m getCollectionModel) View() tea.View {
 
 		currentShelf = lipglossDimmer(s.StatusHeader, "Picked Shelf", displayShelf)
 
-		const statusWidth = 68
-		statusMarginLeft := m.get.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-		status = s.Status.
-			Height(10).
-			Width(statusWidth).
-			MarginLeft(statusMarginLeft).
-			Render(currentShelf)
+		status = m.get.book.statusPanel(form, currentShelf, 10)
 	}
 
 	errors := m.get.book.form.Errors()
@@ -120,12 +113,21 @@ func (m getCollectionModel) View() tea.View {
 	if len(errors) > 0 {
 		footer = m.get.book.appErrorBoundaryView("")
 	}
-	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m getCollectionModel) ResultView() string {
+	if m.get.book.form.State != huh.StateCompleted || m.action != "list" {
+		return ""
+	}
+	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "collection-list", m.get.shelf).Content
 }
 
 // GetCollectionForm to be used for editing descriptions/names in future
 func GetCollectionForm(bs *book.BookShelves, config *book.Config, action string) getCollectionModel {
-	m := collectionModel{book: &Book{width: maxWidth}}
+	m := collectionModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs
@@ -240,56 +242,57 @@ func (m editCollectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m editCollectionModel) View() tea.View {
-	s := m.editor.book.styles
-	t := m.editor.book.tmpls
-
-	switch m.editor.book.form.State {
-	case huh.StateCompleted:
-		return renderCompletedView(s, t, "collection-add", m.editor.collection)
-	default:
-		// Form (left side)
-		v := strings.TrimSuffix(m.editor.book.form.View(), "\n\n")
-		form := s.Form.Render(v)
-
-		// Status (right side)
-		var status string
-		{
-			var (
-				editShelfName      string
-				editCollectionName string
-				editCollectionDesc string
-			)
-
-			editShelfName = s.StatusHeader.Render("Picked Shelf") + "\n" + m.editor.shelf.Name + "\n\n"
-			editCollectionName = lipglossDimmer(s.StatusHeader, "Collection Name", m.editor.collection.Name)
-			editCollectionDesc = lipglossDimmer(s.StatusHeader, "Collection Description", m.editor.collection.Description)
-
-			const statusWidth = 68
-			statusMarginLeft := m.editor.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-			status = s.Status.
-				Height(10).
-				Width(statusWidth).
-				MarginLeft(statusMarginLeft).
-				Render(editShelfName + editCollectionName + editCollectionDesc)
-		}
-
-		errors := m.editor.book.form.Errors()
-		header := m.editor.book.appBoundaryView("book collection editing system")
-		if len(errors) > 0 {
-			header = m.editor.book.appErrorBoundaryView(m.editor.book.errorView())
-		}
-		body := lipgloss.JoinHorizontal(lipgloss.Left, form, status)
-
-		footer := m.editor.book.appBoundaryView(m.editor.book.form.Help().ShortHelpView(m.editor.book.form.KeyBinds()))
-		if len(errors) > 0 {
-			footer = m.editor.book.appErrorBoundaryView("")
-		}
-		return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	if m.editor.book.form.State == huh.StateCompleted || m.editor.book.width <= 0 {
+		return altScreenView("")
 	}
+
+	s := m.editor.book.styles
+
+	// Form (left side)
+	v := strings.TrimSuffix(m.editor.book.form.View(), "\n\n")
+	form := s.Form.Render(v)
+
+	// Status (right side)
+	var status string
+	{
+		var (
+			editShelfName      string
+			editCollectionName string
+			editCollectionDesc string
+		)
+
+		editShelfName = s.StatusHeader.Render("Picked Shelf") + "\n" + m.editor.shelf.Name + "\n\n"
+		editCollectionName = lipglossDimmer(s.StatusHeader, "Collection Name", m.editor.collection.Name)
+		editCollectionDesc = lipglossDimmer(s.StatusHeader, "Collection Description", m.editor.collection.Description)
+
+		status = m.editor.book.statusPanel(form, editShelfName+editCollectionName+editCollectionDesc, 10)
+	}
+
+	errors := m.editor.book.form.Errors()
+	header := m.editor.book.appBoundaryView("book collection editing system")
+	if len(errors) > 0 {
+		header = m.editor.book.appErrorBoundaryView(m.editor.book.errorView())
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Left, form, status)
+
+	footer := m.editor.book.appBoundaryView(m.editor.book.form.Help().ShortHelpView(m.editor.book.form.KeyBinds()))
+	if len(errors) > 0 {
+		footer = m.editor.book.appErrorBoundaryView("")
+	}
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m editCollectionModel) ResultView() string {
+	if m.editor.book.form.State != huh.StateCompleted {
+		return ""
+	}
+	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "collection-add", m.editor.collection).Content
 }
 
 func editCollectionForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config, action string) editCollectionModel {
-	m := collectionModel{book: &Book{width: maxWidth}}
+	m := collectionModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs

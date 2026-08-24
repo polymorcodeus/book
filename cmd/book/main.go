@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/polymorcodeus/gofiglet"
 	altsrc "github.com/urfave/cli-altsrc/v3"
 	alttoml "github.com/urfave/cli-altsrc/v3/toml"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/internal/model"
 )
 
 var (
@@ -532,4 +534,21 @@ func Main() {
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// runProgram runs a RootScreen TUI and prints its completion output after the
+// program exits. The interactive form renders in the alternate screen buffer
+// and is discarded on exit, so the caller prints the result below the banner
+// instead of leaving selector fragments behind.
+func runProgram(screen model.RootScreen) error {
+	m, err := tea.NewProgram(screen).Run()
+	if err != nil {
+		return err
+	}
+	if rp, ok := m.(model.ResultProvider); ok {
+		if v := rp.ResultView(); v != "" {
+			fmt.Print(v)
+		}
+	}
+	return nil
 }
