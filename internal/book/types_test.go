@@ -1,6 +1,7 @@
 package book
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -347,6 +348,46 @@ func TestMergeTags(t *testing.T) {
 			got := MergeTags(tt.in...)
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("MergeTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseTagFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    [][]string
+		wantErr bool
+	}{
+		{name: "blank", in: "", want: nil},
+		{name: "whitespace", in: "   ", want: nil},
+		{name: "single tag", in: "a", want: [][]string{{"a"}}},
+		{name: "or", in: "a,b", want: [][]string{{"a", "b"}}},
+		{name: "and", in: "a+b", want: [][]string{{"a"}, {"b"}}},
+		{name: "and of ors", in: "a,b+c", want: [][]string{{"a", "b"}, {"c"}}},
+		{name: "trims spaces", in: "a, b + c", want: [][]string{{"a", "b"}, {"c"}}},
+		{name: "trailing comma", in: "a,", wantErr: true},
+		{name: "leading comma", in: ",a", wantErr: true},
+		{name: "trailing plus", in: "a+", wantErr: true},
+		{name: "leading plus", in: "+a", wantErr: true},
+		{name: "double plus", in: "a++b", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTagFilter(tt.in)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ParseTagFilter(%q) = %v, want error", tt.in, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseTagFilter(%q) error: %v", tt.in, err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ParseTagFilter(%q) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
 	}

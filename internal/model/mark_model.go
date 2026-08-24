@@ -164,7 +164,7 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			cmds = append(cmds, cmd, tea.Quit)
 		case "list":
-			cmds = append(cmds, tea.Quit)
+			cmds = append(cmds, tea.ClearScreen, tea.Quit)
 		case "delete":
 			cmds = append(cmds, m.get.updateShelfFileCmd(m.action))
 		}

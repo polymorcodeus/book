@@ -366,6 +366,32 @@ func MergeTags(sources ...[]string) []string {
 	return slices.DeleteFunc(merged, func(e string) bool { return e == "" })
 }
 
+// ParseTagFilter parses the search --tags grammar into AND clauses of OR tags.
+// A plus (+) separates AND clauses and a comma (,) separates OR alternatives
+// within a clause, so "a,b+c" means (a OR b) AND c. Empty groups (for example
+// "a,", ",a", "a+", or "+a") are rejected. A blank input yields nil.
+func ParseTagFilter(input string) ([][]string, error) {
+	if strings.TrimSpace(input) == "" {
+		return nil, nil
+	}
+
+	clauses := strings.Split(input, "+")
+	result := make([][]string, 0, len(clauses))
+	for _, clause := range clauses {
+		rawTags := strings.Split(clause, ",")
+		tags := make([]string, 0, len(rawTags))
+		for _, raw := range rawTags {
+			tag := strings.TrimSpace(raw)
+			if tag == "" {
+				return nil, fmt.Errorf("empty tag group in %q", input)
+			}
+			tags = append(tags, tag)
+		}
+		result = append(result, tags)
+	}
+	return result, nil
+}
+
 // PrintCatalog serializes an item as JSON or TOML to stdout.
 func PrintCatalog[T any](item T, format string) error {
 	switch format {

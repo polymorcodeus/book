@@ -352,25 +352,40 @@ func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection,
 
 // SearchResult is a single match from a full-text search over the index.
 type SearchResult struct {
-	Shelf      string   `json:"shelf"`
-	Collection string   `json:"collection"`
-	Title      string   `json:"title"`
-	URL        string   `json:"url"`
-	Tags       []string `json:"tags"`
+	Shelf      string   `json:"shelf" toml:"shelf"`
+	Collection string   `json:"collection" toml:"collection"`
+	Title      string   `json:"title" toml:"title"`
+	URL        string   `json:"url" toml:"url"`
+	Tags       []string `json:"tags" toml:"tags"`
 }
 
 // Search runs an FTS5 query over mark titles and URLs, excluding soft-deleted
-// marks. The query string uses FTS5 match syntax.
-func (ix *Index) Search(query, shelfName, collectionName string) ([]SearchResult, error) {
-	sqlQuery := `
-		SELECT m.catalog_id, m.title, m.url, c.name, s.name
-		FROM marks_fts
-		JOIN marks m ON m.catalog_id = marks_fts.catalog_id
-		JOIN collections c ON c.collection_id = m.collection_id
-		JOIN shelves s ON s.shelf_id = c.shelf_id
-		WHERE marks_fts MATCH ? AND m.deleted_at = ''`
+// marks. The query string uses FTS5 match syntax and may be empty to search by
+// filters alone. tagClauses filters results to marks matching every clause
+// (AND), where each clause is a set of tags of which at least one must match
+// (OR). An empty tagClauses applies no tag filter.
+func (ix *Index) Search(query, shelfName, collectionName string, tagClauses [][]string) ([]SearchResult, error) {
+	var sqlQuery string
 	var args []any
-	args = append(args, query)
+
+	if query != "" {
+		sqlQuery = `
+			SELECT m.catalog_id, m.title, m.url, c.name, s.name
+			FROM marks_fts
+			JOIN marks m ON m.catalog_id = marks_fts.catalog_id
+			JOIN collections c ON c.collection_id = m.collection_id
+			JOIN shelves s ON s.shelf_id = c.shelf_id
+			WHERE marks_fts MATCH ? AND m.deleted_at = ''`
+		args = append(args, query)
+	} else {
+		sqlQuery = `
+			SELECT m.catalog_id, m.title, m.url, c.name, s.name
+			FROM marks m
+			JOIN collections c ON c.collection_id = m.collection_id
+			JOIN shelves s ON s.shelf_id = c.shelf_id
+			WHERE m.deleted_at = ''`
+	}
+
 	if shelfName != "" {
 		sqlQuery += " AND s.name = ?"
 		args = append(args, shelfName)
@@ -379,7 +394,20 @@ func (ix *Index) Search(query, shelfName, collectionName string) ([]SearchResult
 		sqlQuery += " AND c.name = ?"
 		args = append(args, collectionName)
 	}
-	sqlQuery += " ORDER BY rank"
+	for i, clause := range tagClauses {
+		alias := fmt.Sprintf("tf%d", i)
+		sqlQuery += fmt.Sprintf(
+			" AND EXISTS (SELECT 1 FROM tags %s WHERE %s.mark_id = m.catalog_id AND %s.tag IN (%s))",
+			alias, alias, alias, placeholders(len(clause)))
+		for _, tag := range clause {
+			args = append(args, tag)
+		}
+	}
+	if query != "" {
+		sqlQuery += " ORDER BY rank"
+	} else {
+		sqlQuery += " ORDER BY s.name, c.name, m.title"
+	}
 
 	rows, err := ix.db.Query(sqlQuery, args...)
 	if err != nil {
@@ -650,6 +678,14 @@ func shelfFilePaths(config *book.Config) ([]string, error) {
 		out = append(out, file)
 	}
 	return out, nil
+}
+
+// placeholders returns a comma-separated list of n SQL "?" placeholders.
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
 
 // hashFile returns the lowercase hex SHA-256 of the file's contents.

@@ -260,7 +260,7 @@ func TestSearch(t *testing.T) {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
-	results, err := ix.Search("golang", "", "")
+	results, err := ix.Search("golang", "", "", nil)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -272,11 +272,135 @@ func TestSearch(t *testing.T) {
 	}
 
 	// URL token search should also match.
-	results, err = ix.Search("pkg", "", "")
+	results, err = ix.Search("pkg", "", "", nil)
 	if err != nil {
 		t.Fatalf("Search(pkg): %v", err)
 	}
 	if len(results) != 1 {
 		t.Fatalf("Search(pkg) = %d results, want 1", len(results))
+	}
+}
+
+func TestSearchTagFilter(t *testing.T) {
+	cfg := testConfig(t)
+	writeShelfFile(t, cfg, sampleShelf())
+
+	ix, err := OpenIndex(cfg)
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer func() { _ = ix.Close() }()
+
+	if _, err := ix.Rebuild(cfg); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+
+	// "go" matches both marks; OR filter (lang OR docs) keeps both.
+	results, err := ix.Search("go", "", "", [][]string{{"lang", "docs"}})
+	if err != nil {
+		t.Fatalf("Search OR: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("Search OR = %d results, want 2", len(results))
+	}
+
+	// Single tag filter narrows to the mark carrying "lang".
+	results, err = ix.Search("go", "", "", [][]string{{"lang"}})
+	if err != nil {
+		t.Fatalf("Search single tag: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "The Go Programming Language" {
+		t.Fatalf("Search single tag = %+v, want mark with lang", results)
+	}
+
+	// AND filter (lang AND official) matches only mark 1.
+	results, err = ix.Search("go", "", "", [][]string{{"lang"}, {"official"}})
+	if err != nil {
+		t.Fatalf("Search AND: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "The Go Programming Language" {
+		t.Fatalf("Search AND = %+v, want mark with lang+official", results)
+	}
+
+	// AND filter with no overlap matches nothing.
+	results, err = ix.Search("go", "", "", [][]string{{"lang"}, {"docs"}})
+	if err != nil {
+		t.Fatalf("Search AND empty: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("Search AND empty = %d results, want 0", len(results))
+	}
+}
+
+func TestSearchTagsOnly(t *testing.T) {
+	cfg := testConfig(t)
+	writeShelfFile(t, cfg, sampleShelf())
+
+	ix, err := OpenIndex(cfg)
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer func() { _ = ix.Close() }()
+
+	if _, err := ix.Rebuild(cfg); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+
+	// Empty query with a tag filter returns every mark carrying that tag.
+	results, err := ix.Search("", "", "", [][]string{{"docs"}})
+	if err != nil {
+		t.Fatalf("Search tags-only: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "Golang patterns" {
+		t.Fatalf("Search tags-only = %+v, want mark with docs", results)
+	}
+
+	// Empty query with a shelf filter returns every mark in that shelf.
+	results, err = ix.Search("", "work", "", nil)
+	if err != nil {
+		t.Fatalf("Search shelf-only: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("Search shelf-only = %d results, want 2", len(results))
+	}
+}
+
+func TestSearchExcludesSoftDeleted(t *testing.T) {
+	cfg := testConfig(t)
+
+	v2 := 2
+	s := &book.Shelf{
+		SchemaVersion: &v2,
+		ID:            book.GenerateShelfID("work"),
+		Name:          "work",
+		Collections: map[string]*book.Collection{
+			"golang": {
+				ID:   book.GenerateCollectionID("work", "golang"),
+				Name: "golang",
+				Marks: []*book.Mark{
+					{ID: book.GenerateID("https://go.dev"), Name: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
+					{ID: book.GenerateID("https://pkg.go.dev"), Name: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
+				},
+			},
+		},
+	}
+	writeShelfFile(t, cfg, s)
+
+	ix, err := OpenIndex(cfg)
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer func() { _ = ix.Close() }()
+
+	if _, err := ix.Rebuild(cfg); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+
+	results, err := ix.Search("go", "", "", nil)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "The Go Programming Language" {
+		t.Fatalf("Search excluded soft-deleted = %+v, want only the non-deleted mark", results)
 	}
 }

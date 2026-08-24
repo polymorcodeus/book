@@ -70,6 +70,7 @@ func Main() {
 	var markURL string
 	var markTags string
 	var markTitle string
+	var searchTags string
 
 	cmd := &cli.Command{
 		Name:                  "book",
@@ -176,11 +177,13 @@ func Main() {
 			}
 
 			// Load Book Shelves only if <command> <subcommand> is passed.
-			// Additionally, this is skipped for `catalog` as those are admin tools.
-			// This is intentional: when only a subcommand is given (e.g. "book shelf"),
-			// urfave/cli will auto-render the help text. We skip catalog loading so
-			// help renders quickly without reading the filesystem.
-			if cmd.Args().Len() > 1 {
+			// Additionally, this is skipped for `mark search` (which reads the
+			// SQLite index) and the catalog admin tools. This is intentional:
+			// when only a subcommand is given (e.g. "book shelf"), urfave/cli
+			// will auto-render the help text. We skip catalog loading so help
+			// renders quickly without reading the filesystem.
+			isSearch := cmd.Args().First() == "mark" && cmd.Args().Get(1) == "search"
+			if cmd.Args().Len() > 1 && !isSearch {
 				if err := catalog.LoadCatalog(&bookShelves, config, config.Interactive); err != nil {
 					return ctx, cli.Exit(config.StyledError(err), 1)
 				}
@@ -296,23 +299,21 @@ func Main() {
 			{
 				Name:  "mark",
 				Usage: "options for bookmarks",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:        "shelf",
-						Usage:       "shelf selection for mark",
-						Destination: &shelf,
-					},
-					&cli.StringFlag{
-						Name:        "collection",
-						Usage:       "collection selection for mark",
-						Destination: &collection,
-					},
-				},
 				Commands: []*cli.Command{
 					{
 						Name:  "add",
 						Usage: "add a new bookmark",
 						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "shelf",
+								Usage:       "shelf selection for mark",
+								Destination: &shelf,
+							},
+							&cli.StringFlag{
+								Name:        "collection",
+								Usage:       "collection selection for mark",
+								Destination: &collection,
+							},
 							&cli.StringFlag{
 								Name:        "tags",
 								Usage:       "comma-separated list of tags to add to mark",
@@ -376,6 +377,18 @@ func Main() {
 						Name:    "list",
 						Usage:   "list marks in a collection",
 						Aliases: []string{"ls"},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "shelf",
+								Usage:       "shelf selection for mark",
+								Destination: &shelf,
+							},
+							&cli.StringFlag{
+								Name:        "collection",
+								Usage:       "collection selection for mark",
+								Destination: &collection,
+							},
+						},
 						Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 							if !config.Interactive && format == "" {
 								return ctx, cli.Exit(config.StyledError(fmt.Errorf("set --format=[json|toml] to output collections non-interactively")), 1)
@@ -384,6 +397,39 @@ func Main() {
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							if err := marks(&bookShelves, shelf, collection, format, config); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
+						},
+					},
+					{
+						Name:  "search",
+						Usage: "search bookmarks by title, URL, or tags",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "shelf",
+								Usage:       "filter results by shelf",
+								Destination: &shelf,
+							},
+							&cli.StringFlag{
+								Name:        "collection",
+								Usage:       "filter results by collection",
+								Destination: &collection,
+							},
+							&cli.StringFlag{
+								Name:        "tags",
+								Usage:       "filter results by tags; comma=OR, plus=AND (e.g. a,b+c)",
+								Destination: &searchTags,
+							},
+						},
+						Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+							if c.Args().First() == "" && searchTags == "" && shelf == "" && collection == "" {
+								return ctx, cli.Exit(config.StyledError(fmt.Errorf("must pass a search query or a filter (--tags, --shelf, --collection)")), 1)
+							}
+							return ctx, nil
+						},
+						Action: func(ctx context.Context, c *cli.Command) error {
+							if err := searchMarks(c.Args().First(), searchTags, shelf, collection, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil

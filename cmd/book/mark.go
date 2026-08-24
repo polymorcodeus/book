@@ -40,6 +40,39 @@ func editMark(bs *book.BookShelves, config *book.Config) error {
 	return err
 }
 
+func searchMarks(query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
+	clauses, err := book.ParseTagFilter(tags)
+	if err != nil {
+		return err
+	}
+
+	idx, err := syncIndex(config)
+	if err != nil {
+		return err
+	}
+
+	results, err := idx.Search(query, shelfName, collectionName, clauses)
+	if err != nil {
+		return err
+	}
+
+	switch format {
+	case "json":
+		return book.PrintCatalog(results, format)
+	case "toml":
+		// TOML requires a top-level map or struct, so wrap the slice.
+		wrapped := struct {
+			Marks []catalog.SearchResult `toml:"marks"`
+		}{results}
+		return book.PrintCatalog(wrapped, format)
+	default:
+		for _, r := range results {
+			fmt.Printf("%s %s\n", r.Title, r.URL)
+		}
+		return nil
+	}
+}
+
 func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *book.Config) error {
 	if _, err := url.ParseRequestURI(URL); err != nil {
 		return err
