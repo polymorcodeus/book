@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/model"
 )
@@ -20,13 +19,11 @@ func collections(bs *book.BookShelves, shelfName string, format string, config *
 		return book.PrintCatalog(names, format)
 	}
 
-	_, err := tea.NewProgram(collectionRootScreen(bs, "list", config)).Run()
-	return err
+	return runProgram(collectionRootScreen(bs, "list", config))
 }
 
 func addCollection(bs *book.BookShelves, config *book.Config) error {
-	_, err := tea.NewProgram(collectionRootScreen(bs, "add", config)).Run()
-	return err
+	return runProgram(collectionRootScreen(bs, "add", config))
 }
 
 func collectionRootScreen(bs *book.BookShelves, action string, config *book.Config) model.RootScreen {

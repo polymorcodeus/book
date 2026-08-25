@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
@@ -14,8 +13,7 @@ import (
 )
 
 func mark(bs *book.BookShelves, config *book.Config) error {
-	_, err := tea.NewProgram(markRootScreen(bs, &book.Mark{}, "get", config)).Run()
-	return err
+	return runProgram(markRootScreen(bs, &book.Mark{}, "get", config))
 }
 
 func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, config *book.Config) error {
@@ -31,13 +29,11 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 		}
 		return book.PrintCatalog(collection, format)
 	}
-	_, err := tea.NewProgram(markRootScreen(bs, &book.Mark{}, "list", config)).Run()
-	return err
+	return runProgram(markRootScreen(bs, &book.Mark{}, "list", config))
 }
 
 func editMark(bs *book.BookShelves, config *book.Config) error {
-	_, err := tea.NewProgram(markRootScreen(bs, &book.Mark{}, "edit", config)).Run()
-	return err
+	return runProgram(markRootScreen(bs, &book.Mark{}, "edit", config))
 }
 
 func searchMarks(query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
@@ -139,13 +135,11 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 		return nil
 	}
 
-	_, err := tea.NewProgram(markRootScreen(bs, &mark, "add", config)).Run()
-	return err
+	return runProgram(markRootScreen(bs, &mark, "add", config))
 }
 
 func removeMark(bs *book.BookShelves, config *book.Config) error {
-	_, err := tea.NewProgram(markRootScreen(bs, &book.Mark{}, "delete", config)).Run()
-	return err
+	return runProgram(markRootScreen(bs, &book.Mark{}, "delete", config))
 }
 
 func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *book.Config) model.RootScreen {

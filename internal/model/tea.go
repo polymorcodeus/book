@@ -13,6 +13,9 @@ import (
 
 const maxWidth = 120
 
+// maxStatusWidth is the widest the side status panel is ever rendered.
+const maxStatusWidth = 68
+
 // Styles holds the pre-built lipgloss styles for the TUI.
 type Styles struct {
 	Base,
@@ -106,6 +109,45 @@ func (b Book) appErrorBoundaryView(text string) string {
 		lipgloss.WithWhitespaceChars("❯"),
 		lipgloss.WithWhitespaceStyle(b.styles.PrimaryAccent),
 	)
+}
+
+// statusPanel renders the side status panel so it fits beside the form within
+// the available width. It shrinks on narrow terminals instead of overflowing;
+// rendering a frame wider than the terminal wraps lines and desyncs the
+// renderer, leaving stale cells behind on the next (shorter) frame.
+func (b Book) statusPanel(form, content string, height int) string {
+	statusWidth := maxStatusWidth
+	statusMarginLeft := b.width - statusWidth - lipgloss.Width(form) - b.styles.Status.GetMarginRight()
+	if statusMarginLeft < 0 {
+		statusWidth += statusMarginLeft
+		statusMarginLeft = 0
+	}
+	if statusWidth < 0 {
+		statusWidth = 0
+	}
+	return b.styles.Status.
+		Height(height).
+		Width(statusWidth).
+		MarginLeft(statusMarginLeft).
+		Render(content)
+}
+
+// ResultProvider is implemented by models that produce a final output string
+// to be printed by the caller after the program exits. Rendering the shorter
+// completion view inside the TUI leaves stale form fragments on screen, so the
+// form runs in the alternate screen buffer and the result is printed after the
+// program returns.
+type ResultProvider interface {
+	ResultView() string
+}
+
+// altScreenView returns a view rendered in the alternate screen buffer. The
+// interactive form is drawn there and discarded on exit, leaving the main
+// screen clean for the caller to print the result.
+func altScreenView(s string) tea.View {
+	v := tea.NewView(s)
+	v.AltScreen = true
+	return v
 }
 
 // RootScreen wraps a tea.Model and delegates the BubbleTea lifecycle to it.

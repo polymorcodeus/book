@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -67,7 +66,7 @@ func (m getShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			editScreen := editShelfForm(m.get.book.shelves, m.get.shelf, m.get.config, m.action)
 			return editScreen, editScreen.Init()
 		case "list":
-			cmds = append(cmds, delayedQuit())
+			cmds = append(cmds, tea.Quit)
 		}
 	}
 
@@ -76,12 +75,11 @@ func (m getShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View now returns tea.View (bubbletea v2 breaking change).
 func (m getShelfModel) View() tea.View {
-	s := m.get.book.styles
-	t := m.get.book.tmpls
-
-	if m.action == "list" && m.get.book.form.State == huh.StateCompleted {
-		return renderCompletedView(s, t, "shelf-list", m.get.book.shelves)
+	if m.get.book.form.State == huh.StateCompleted || m.get.book.width <= 0 {
+		return altScreenView("")
 	}
+
+	s := m.get.book.styles
 
 	// Form (left side)
 	v := strings.TrimSuffix(m.get.book.form.View(), "\n\n")
@@ -98,13 +96,7 @@ func (m getShelfModel) View() tea.View {
 			currentShelf = s.StatusHeader.Render("Picked Shelf") + "\n" + "fake" + "\n\n"
 		}
 
-		const statusWidth = 68
-		statusMarginLeft := m.get.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-		status = s.Status.
-			Height(14).
-			Width(statusWidth).
-			MarginLeft(statusMarginLeft).
-			Render(currentShelf)
+		status = m.get.book.statusPanel(form, currentShelf, 14)
 	}
 
 	errors := m.get.book.form.Errors()
@@ -118,12 +110,21 @@ func (m getShelfModel) View() tea.View {
 	if len(errors) > 0 {
 		footer = m.get.book.appErrorBoundaryView("")
 	}
-	return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m getShelfModel) ResultView() string {
+	if m.get.book.form.State != huh.StateCompleted || m.action != "list" {
+		return ""
+	}
+	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "shelf-list", m.get.book.shelves).Content
 }
 
 // GetShelfForm to be used for editing descriptions/names in future
 func GetShelfForm(bs *book.BookShelves, config *book.Config, action string) getShelfModel {
-	m := shelfModel{book: &Book{width: maxWidth}}
+	m := shelfModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs
@@ -228,58 +229,59 @@ func (m editShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View now returns tea.View (bubbletea v2 breaking change).
 func (m editShelfModel) View() tea.View {
-	s := m.editor.book.styles
-	t := m.editor.book.tmpls
-
-	switch m.editor.book.form.State {
-	case huh.StateCompleted:
-		return renderCompletedView(s, t, "shelf-add", m.editor.collection)
-	default:
-		// Form (left side)
-		v := strings.TrimSuffix(m.editor.book.form.View(), "\n\n")
-		form := s.Form.Render(v)
-
-		// Status (right side)
-		var status string
-		{
-			var (
-				editShelfName      string
-				editShelfDesc      string
-				editCollectionName string
-				editCollectionDesc string
-			)
-
-			editShelfName = s.StatusHeader.Render("Shelf Name") + "\n" + m.editor.shelf.Name + "\n\n"
-			editShelfDesc = lipglossDimmer(s.StatusHeader, "Shelf Description", m.editor.shelf.Description)
-			editCollectionName = lipglossDimmer(s.StatusHeader, "Collection Name", m.editor.collection.Name)
-			editCollectionDesc = lipglossDimmer(s.StatusHeader, "Collection Description", m.editor.collection.Description)
-
-			const statusWidth = 68
-			statusMarginLeft := m.editor.book.width - statusWidth - lipgloss.Width(form) - s.Status.GetMarginRight()
-			status = s.Status.
-				Height(14).
-				Width(statusWidth).
-				MarginLeft(statusMarginLeft).
-				Render(editShelfName + editShelfDesc + editCollectionName + editCollectionDesc)
-		}
-
-		errors := m.editor.book.form.Errors()
-		header := m.editor.book.appBoundaryView("book shelf editing system")
-		if len(errors) > 0 {
-			header = m.editor.book.appErrorBoundaryView(m.editor.book.errorView())
-		}
-		body := lipgloss.JoinHorizontal(lipgloss.Left, form, status)
-
-		footer := m.editor.book.appBoundaryView(m.editor.book.form.Help().ShortHelpView(m.editor.book.form.KeyBinds()))
-		if len(errors) > 0 {
-			footer = m.editor.book.appErrorBoundaryView("")
-		}
-		return tea.NewView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+	if m.editor.book.form.State == huh.StateCompleted || m.editor.book.width <= 0 {
+		return altScreenView("")
 	}
+
+	s := m.editor.book.styles
+
+	// Form (left side)
+	v := strings.TrimSuffix(m.editor.book.form.View(), "\n\n")
+	form := s.Form.Render(v)
+
+	// Status (right side)
+	var status string
+	{
+		var (
+			editShelfName      string
+			editShelfDesc      string
+			editCollectionName string
+			editCollectionDesc string
+		)
+
+		editShelfName = s.StatusHeader.Render("Shelf Name") + "\n" + m.editor.shelf.Name + "\n\n"
+		editShelfDesc = lipglossDimmer(s.StatusHeader, "Shelf Description", m.editor.shelf.Description)
+		editCollectionName = lipglossDimmer(s.StatusHeader, "Collection Name", m.editor.collection.Name)
+		editCollectionDesc = lipglossDimmer(s.StatusHeader, "Collection Description", m.editor.collection.Description)
+
+		status = m.editor.book.statusPanel(form, editShelfName+editShelfDesc+editCollectionName+editCollectionDesc, 14)
+	}
+
+	errors := m.editor.book.form.Errors()
+	header := m.editor.book.appBoundaryView("book shelf editing system")
+	if len(errors) > 0 {
+		header = m.editor.book.appErrorBoundaryView(m.editor.book.errorView())
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Left, form, status)
+
+	footer := m.editor.book.appBoundaryView(m.editor.book.form.Help().ShortHelpView(m.editor.book.form.KeyBinds()))
+	if len(errors) > 0 {
+		footer = m.editor.book.appErrorBoundaryView("")
+	}
+	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
+}
+
+// ResultView returns the completion output for the caller to print after the
+// program exits.
+func (m editShelfModel) ResultView() string {
+	if m.editor.book.form.State != huh.StateCompleted {
+		return ""
+	}
+	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "shelf-add", m.editor.collection).Content
 }
 
 func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config, action string) editShelfModel {
-	m := shelfModel{book: &Book{width: maxWidth}}
+	m := shelfModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs
@@ -386,11 +388,4 @@ func (m *shelfModel) updateShelfFileCmd(action string) tea.Cmd {
 		}
 		return nil
 	}
-}
-
-// work around for https://github.com/charmbracelet/bubbletea/issues/1590
-func delayedQuit() tea.Cmd {
-	return tea.Tick(time.Millisecond*100, func(time.Time) tea.Msg {
-		return tea.QuitMsg{}
-	})
 }
