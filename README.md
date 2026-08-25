@@ -13,7 +13,7 @@
 
 Terminal bookmark manager with hierarchical organization (Shelf → Collection → Mark). Bookmarks are persisted as plain TOML, enabling version control, clean diffs, and [dotfile manager](https://github.com/polymorcodeus/lnk) integration. Supports both interactive TUI and non-interactive CLI modes for scripting.
 
-The roadmap includes search, lazy loading, stable identifiers, and atomic shelf-collection operations.
+Bookmarks ship with stable identifiers (`catalog_id`), full-text search (`book mark search`), atomic writes, schema migration (`book migrate`), and soft-delete recovery (`book mark restore`, `book gc`).
 
 ## Quick Demo
 
@@ -115,6 +115,8 @@ collection_desc = "language and framework docs"
 - `catalog_id` is a stable URL hash — duplicates are rejected across the entire catalog.
 - Collections are keyed by name inside the `[Collections]` table.
 - Marks are inline arrays-of-tables per collection.
+- Optional RFC3339 timestamps (`created_at`, `updated_at`, `deleted_at`) track each entity's lifecycle; `deleted_at` marks a soft-deleted mark.
+- `mark remove` soft-deletes by setting `deleted_at`; the mark is hidden from `list`/`get`/`search` until `book gc` purges it or `mark restore` brings it back.
 - `schema_version` is the on-disk data format version (`2`), independent of the tool's release version (v1.x). `book migrate` upgrades older v1 files in place.
 
 ## Commands
@@ -130,8 +132,15 @@ collection_desc = "language and framework docs"
 | `mark add <url>` | Add a bookmark (optionally non-interactive) |
 | `mark edit` | Edit an existing bookmark (TUI) |
 | `mark get` | Browse bookmarks and open one (TUI) |
-| `mark list` | List bookmarks in a collection |
-| `mark remove` | Remove a bookmark (TUI) |
+| `mark list` | List bookmarks in a collection (`--trash` lists soft-deleted) |
+| `mark search <query>` | Full-text search by title, URL, or tags |
+| `mark remove` | Soft-delete a bookmark (TUI) |
+| `mark restore` | Restore a soft-deleted bookmark (`--id`, or `--shelf`/`--collection`/`--url`) |
+| `migrate` | Upgrade v1 shelf files to the v2 schema |
+| `gc` | Purge soft-deleted marks past the retention window |
+| `index rebuild` | Rebuild the derived search index |
+| `index sync` | Reconcile the index with shelf changes |
+| `doctor` | Detect post-merge duplicates and conflicts (`--fix` auto-merges; alias `sync`) |
 | `catalog theme` | Generate `theme.json` with default TUI theme |
 | `catalog template` | Generate `template.json` with default TUI templates |
 | `catalog config` | Create the config file if missing |
