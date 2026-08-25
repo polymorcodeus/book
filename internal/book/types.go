@@ -166,12 +166,46 @@ func (bs *BookShelves) LoadParents() {
 }
 
 // VerifyUniqueURL returns an error if the given ID already exists in any mark.
+// A collision with a soft-deleted mark points at `book mark restore` rather
+// than re-adding the URL.
 func (bs *BookShelves) VerifyUniqueURL(id string) error {
 	for _, b := range *bs {
 		for _, c := range b.Collections {
 			for _, m := range c.Marks {
-				if m.ID == id {
-					return fmt.Errorf("duplicate URL Found!\n\n%s", m.FullDetail())
+				if m.ID != id {
+					continue
+				}
+				if m.IsDeleted() {
+					return fmt.Errorf("URL already trashed!\n\n%s\n\nrestore it with:\nbook mark restore --shelf %s --collection %s --url %s",
+						m.FullDetail(), m.Shelf.Name, m.Collection.Name, m.URL)
+				}
+				return fmt.Errorf("duplicate URL Found!\n\n%s", m.FullDetail())
+			}
+		}
+	}
+	return nil
+}
+
+// PurgeDeletedMarks hard-removes soft-deleted marks older than cutoff from every
+// shelf, returning the number of marks removed.
+func (bs *BookShelves) PurgeDeletedMarks(cutoff time.Time) int {
+	total := 0
+	for i := range *bs {
+		total += (*bs)[i].PurgeDeletedMarks(cutoff)
+	}
+	return total
+}
+
+// SoftDeletedByID returns the soft-deleted mark whose ID matches, or nil. IDs
+// are globally unique, so no shelf or collection scoping is needed. The
+// returned mark retains its Shelf and Collection back-pointers after
+// LoadParents.
+func (bs *BookShelves) SoftDeletedByID(id string) *Mark {
+	for i := range *bs {
+		for _, c := range (*bs)[i].Collections {
+			for _, m := range c.Marks {
+				if m.ID == id && m.IsDeleted() {
+					return m
 				}
 			}
 		}
@@ -222,6 +256,16 @@ func (s *Shelf) AddCollection(c *Collection) {
 	s.Collections[c.Name] = c
 }
 
+// PurgeDeletedMarks hard-removes soft-deleted marks older than cutoff from every
+// collection in the shelf, returning the number of marks removed.
+func (s *Shelf) PurgeDeletedMarks(cutoff time.Time) int {
+	total := 0
+	for _, c := range s.Collections {
+		total += c.PurgeDeletedMarks(cutoff)
+	}
+	return total
+}
+
 // CollectionsNames returns the names of all collections in the shelf, sorted.
 func (s *Shelf) CollectionsNames() []string {
 	names := make([]string, 0, len(s.Collections))
@@ -243,29 +287,45 @@ type Collection struct {
 	Marks       []*Mark `toml:"marks" json:"marks"`
 }
 
-// MarksNames returns the names of all marks in the collection.
+// MarksNames returns the names of all non-deleted marks in the collection.
 func (c *Collection) MarksNames() []string {
 	markNames := make([]string, 0, len(c.Marks))
 	for _, m := range c.Marks {
+		if m.IsDeleted() {
+			continue
+		}
 		markNames = append(markNames, m.Name)
 	}
 	return markNames
 }
 
-// AllTags returns every tag across all marks in the collection, sorted and deduplicated.
+// HasActiveMarks reports whether the collection contains any non-deleted mark.
+func (c *Collection) HasActiveMarks() bool {
+	for _, m := range c.Marks {
+		if !m.IsDeleted() {
+			return true
+		}
+	}
+	return false
+}
+
+// AllTags returns every tag across all non-deleted marks in the collection, sorted.
 func (c *Collection) AllTags() []string {
 	var tags []string
 	for _, m := range c.Marks {
+		if m.IsDeleted() {
+			continue
+		}
 		tags = append(tags, m.Tags...)
 	}
 	slices.Sort(tags)
 	return tags
 }
 
-// Mark returns a mark by name from the collection.
+// Mark returns a non-deleted mark by name from the collection.
 func (c *Collection) Mark(m string) *Mark {
 	for _, n := range c.Marks {
-		if n.Name == m {
+		if n.Name == m && !n.IsDeleted() {
 			return n
 		}
 	}
@@ -277,11 +337,40 @@ func (c *Collection) AddMark(m *Mark) {
 	c.Marks = append(c.Marks, m)
 }
 
-// DeleteMark removes the given mark from the collection.
+// DeleteMark soft-deletes the given mark by stamping its DeletedAt field. The
+// mark remains in the collection until gc purges it, so accidental removals can
+// be restored.
 func (c *Collection) DeleteMark(m *Mark) {
-	c.Marks = slices.DeleteFunc(c.Marks, func(d *Mark) bool {
-		return d == m
+	if m == nil || m.DeletedAt != "" {
+		return
+	}
+	m.DeletedAt = NowTimestamp()
+}
+
+// RemoveMark hard-removes the given mark from the collection without stamping
+// deleted_at. It is used by book doctor to drop merge-duplicated marks and must
+// not be used for user-initiated removal (which should soft-delete instead).
+func (c *Collection) RemoveMark(m *Mark) {
+	c.Marks = slices.DeleteFunc(c.Marks, func(x *Mark) bool { return x == m })
+}
+
+// PurgeDeletedMarks hard-removes soft-deleted marks whose DeletedAt timestamp is
+// strictly before cutoff, returning the number of marks removed. Marks with an
+// empty or unparseable DeletedAt are retained.
+func (c *Collection) PurgeDeletedMarks(cutoff time.Time) int {
+	removed := 0
+	c.Marks = slices.DeleteFunc(c.Marks, func(m *Mark) bool {
+		if m == nil || m.DeletedAt == "" {
+			return false
+		}
+		t, err := time.Parse(time.RFC3339, m.DeletedAt)
+		if err != nil || !t.Before(cutoff) {
+			return false
+		}
+		removed++
+		return true
 	})
+	return removed
 }
 
 // Mark is a single bookmark with a title, URL, tags, and back-references.
@@ -301,6 +390,11 @@ type Mark struct {
 // Description returns a human-readable summary of the mark.
 func (m *Mark) Description() string {
 	return fmt.Sprintf("Title: %s\nURL: %s\nTags: %s", m.Name, m.URL, strings.Join(m.Tags, ","))
+}
+
+// IsDeleted reports whether the mark has been soft-deleted.
+func (m *Mark) IsDeleted() bool {
+	return m.DeletedAt != ""
 }
 
 // FullDetail returns a verbose summary including shelf, collection, title, URL, and tags.

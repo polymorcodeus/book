@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -216,6 +217,62 @@ func (ix *Index) Sync(config *book.Config) (*SyncReport, error) {
 	return report, nil
 }
 
+// StaleFiles returns the shelf file paths whose index entries are out of date:
+// files whose content changed since indexing, files never indexed, and paths
+// that were indexed but no longer exist on disk. An empty result means the
+// index is current.
+func (ix *Index) StaleFiles(config *book.Config) ([]string, error) {
+	files, err := shelfFilePaths(config)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := ix.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var stale []string
+	seen := make(map[string]bool, len(files))
+	for _, file := range files {
+		seen[file] = true
+		changed, err := ix.fileChanged(tx, file)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			stale = append(stale, file)
+		}
+	}
+
+	// Paths indexed but no longer present on disk.
+	rows, err := tx.Query(`SELECT path FROM file_meta`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if !seen[path] {
+			stale = append(stale, path)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	sort.Strings(stale)
+	return stale, nil
+}
+
 // UpsertShelf writes a single shelf (and its collections, marks, and tags) into
 // the index. The caller must have already persisted the shelf to TOML.
 func (ix *Index) UpsertShelf(s *book.Shelf) error {
@@ -352,6 +409,7 @@ func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection,
 
 // SearchResult is a single match from a full-text search over the index.
 type SearchResult struct {
+	ID         string   `json:"catalog_id" toml:"catalog_id"`
 	Shelf      string   `json:"shelf" toml:"shelf"`
 	Collection string   `json:"collection" toml:"collection"`
 	Title      string   `json:"title" toml:"title"`
@@ -441,6 +499,71 @@ func (ix *Index) Search(query, shelfName, collectionName string, tagClauses [][]
 			return nil, err
 		}
 		results = append(results, SearchResult{
+			ID:         m.id,
+			Shelf:      m.shelf,
+			Collection: m.collection,
+			Title:      m.title,
+			URL:        m.url,
+			Tags:       mark.Tags,
+		})
+	}
+	return results, nil
+}
+
+// DeletedMarks returns every soft-deleted mark, optionally filtered by shelf and
+// collection name, ordered by shelf, collection, and title.
+func (ix *Index) DeletedMarks(shelfName, collectionName string) ([]SearchResult, error) {
+	sqlQuery := `
+		SELECT m.catalog_id, m.title, m.url, c.name, s.name
+		FROM marks m
+		JOIN collections c ON c.collection_id = m.collection_id
+		JOIN shelves s ON s.shelf_id = c.shelf_id
+		WHERE m.deleted_at != ''`
+	var args []any
+
+	if shelfName != "" {
+		sqlQuery += " AND s.name = ?"
+		args = append(args, shelfName)
+	}
+	if collectionName != "" {
+		sqlQuery += " AND c.name = ?"
+		args = append(args, collectionName)
+	}
+	sqlQuery += " ORDER BY s.name, c.name, m.title"
+
+	rows, err := ix.db.Query(sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	type match struct {
+		id, title, url, collection, shelf string
+	}
+	var matches []match
+	for rows.Next() {
+		var m match
+		if err := rows.Scan(&m.id, &m.title, &m.url, &m.collection, &m.shelf); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	results := make([]SearchResult, 0, len(matches))
+	for _, m := range matches {
+		mark := &book.Mark{ID: m.id}
+		if err := ix.loadTags(mark); err != nil {
+			return nil, err
+		}
+		results = append(results, SearchResult{
+			ID:         m.id,
 			Shelf:      m.shelf,
 			Collection: m.collection,
 			Title:      m.title,

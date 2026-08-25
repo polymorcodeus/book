@@ -16,7 +16,29 @@ func mark(bs *book.BookShelves, config *book.Config) error {
 	return runProgram(markRootScreen(bs, &book.Mark{}, "get", config))
 }
 
-func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, config *book.Config) error {
+func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
+	// Trash listing reads the derived index and is always non-interactive.
+	if trash {
+		if format == "" {
+			return fmt.Errorf("set --format=[json|toml] to list trashed marks")
+		}
+		idx, err := syncIndex(config)
+		if err != nil {
+			return err
+		}
+		deleted, err := idx.DeletedMarks(shelfName, collectionName)
+		if err != nil {
+			return err
+		}
+		if format == "toml" {
+			wrapped := struct {
+				Marks []catalog.SearchResult `toml:"marks"`
+			}{deleted}
+			return book.PrintCatalog(wrapped, format)
+		}
+		return book.PrintCatalog(deleted, format)
+	}
+
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && collectionName != "" && !config.Interactive {
 		idx, err := syncIndex(config)
@@ -140,6 +162,57 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 
 func removeMark(bs *book.BookShelves, config *book.Config) error {
 	return runProgram(markRootScreen(bs, &book.Mark{}, "delete", config))
+}
+
+func restoreMark(bs *book.BookShelves, id string, shelfName string, collectionName string, url string) error {
+	// --id is the preferred path: IDs are globally unique, so no shelf or
+	// collection scoping is needed.
+	if id != "" {
+		target := bs.SoftDeletedByID(id)
+		if target == nil {
+			return fmt.Errorf("no trashed mark with id %q", id)
+		}
+		return clearSoftDelete(target.Shelf, target.Collection, target)
+	}
+
+	if shelfName == "" || collectionName == "" || url == "" {
+		return fmt.Errorf("restore requires --id, or --shelf/--collection/--url")
+	}
+
+	shelf := bs.Shelf(shelfName)
+	if book.StructIsEmpty(shelf) {
+		return fmt.Errorf("shelf %q not found", shelfName)
+	}
+	collection := shelf.Collection(collectionName)
+	if book.StructIsEmpty(collection) {
+		return fmt.Errorf("collection %q not found in shelf %q", collectionName, shelfName)
+	}
+
+	var target *book.Mark
+	for _, m := range collection.Marks {
+		if m.URL == url && m.IsDeleted() {
+			target = m
+			break
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("no trashed mark with url %q in %q/%q", url, shelfName, collectionName)
+	}
+	return clearSoftDelete(shelf, collection, target)
+}
+
+// clearSoftDelete restores a soft-deleted mark in place and persists its shelf.
+func clearSoftDelete(shelf *book.Shelf, collection *book.Collection, target *book.Mark) error {
+	now := book.NowTimestamp()
+	target.DeletedAt = ""
+	target.UpdatedAt = now
+	if collection.UpdatedAt != "" {
+		collection.UpdatedAt = now
+	}
+	if shelf.IsV2() {
+		shelf.UpdatedAt = now
+	}
+	return catalog.UpdateShelfFile(shelf)
 }
 
 func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *book.Config) model.RootScreen {
