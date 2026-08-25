@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -214,6 +215,62 @@ func (ix *Index) Sync(config *book.Config) (*SyncReport, error) {
 		return nil, err
 	}
 	return report, nil
+}
+
+// StaleFiles returns the shelf file paths whose index entries are out of date:
+// files whose content changed since indexing, files never indexed, and paths
+// that were indexed but no longer exist on disk. An empty result means the
+// index is current.
+func (ix *Index) StaleFiles(config *book.Config) ([]string, error) {
+	files, err := shelfFilePaths(config)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := ix.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var stale []string
+	seen := make(map[string]bool, len(files))
+	for _, file := range files {
+		seen[file] = true
+		changed, err := ix.fileChanged(tx, file)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			stale = append(stale, file)
+		}
+	}
+
+	// Paths indexed but no longer present on disk.
+	rows, err := tx.Query(`SELECT path FROM file_meta`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if !seen[path] {
+			stale = append(stale, path)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	sort.Strings(stale)
+	return stale, nil
 }
 
 // UpsertShelf writes a single shelf (and its collections, marks, and tags) into

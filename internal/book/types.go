@@ -347,6 +347,13 @@ func (c *Collection) DeleteMark(m *Mark) {
 	m.DeletedAt = NowTimestamp()
 }
 
+// RemoveMark hard-removes the given mark from the collection without stamping
+// deleted_at. It is used by book doctor to drop merge-duplicated marks and must
+// not be used for user-initiated removal (which should soft-delete instead).
+func (c *Collection) RemoveMark(m *Mark) {
+	c.Marks = slices.DeleteFunc(c.Marks, func(x *Mark) bool { return x == m })
+}
+
 // PurgeDeletedMarks hard-removes soft-deleted marks whose DeletedAt timestamp is
 // strictly before cutoff, returning the number of marks removed. Marks with an
 // empty or unparseable DeletedAt are retained.

@@ -77,6 +77,7 @@ func Main() {
 	var restoreID string
 	var trash bool
 	var retentionDays int
+	var fix bool
 
 	cmd := &cli.Command{
 		Name:                  "book",
@@ -188,8 +189,20 @@ func Main() {
 			// when only a subcommand is given (e.g. "book shelf"), urfave/cli
 			// will auto-render the help text. We skip catalog loading so help
 			// renders quickly without reading the filesystem.
+			// Load Book Shelves only for the data commands (shelf, collection,
+			// mark) and only when a subcommand is given. This skips `mark
+			// search` (which reads the SQLite index) and the catalog admin
+			// tools (migrate, gc, doctor, index, catalog), which load their
+			// own data. When only a subcommand is given (e.g. "book shelf"),
+			// urfave/cli auto-renders help, so we skip loading to keep help
+			// fast. Note the command name must be checked explicitly: a
+			// top-level tool's own flags (e.g. "doctor --fix") would otherwise
+			// leak into Args() and trigger an unwanted load.
 			isSearch := cmd.Args().First() == "mark" && cmd.Args().Get(1) == "search"
-			if cmd.Args().Len() > 1 && !isSearch {
+			needsCatalog := cmd.Args().First() == "shelf" ||
+				cmd.Args().First() == "collection" ||
+				cmd.Args().First() == "mark"
+			if cmd.Args().Len() > 1 && needsCatalog && !isSearch {
 				if err := catalog.LoadCatalog(&bookShelves, config, config.Interactive); err != nil {
 					return ctx, cli.Exit(config.StyledError(err), 1)
 				}
@@ -514,6 +527,24 @@ func Main() {
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					if err := gc(config, retentionDays); err != nil {
+						return cli.Exit(config.StyledError(err), 1)
+					}
+					return nil
+				},
+			},
+			{
+				Name:    "doctor",
+				Aliases: []string{"sync"},
+				Usage:   "detect and fix post-merge catalog problems",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:        "fix",
+						Usage:       "auto-merge duplicate marks (requires --confirm)",
+						Destination: &fix,
+					},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					if err := doctor(config, fix); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
