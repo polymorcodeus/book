@@ -352,6 +352,7 @@ func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection,
 
 // SearchResult is a single match from a full-text search over the index.
 type SearchResult struct {
+	ID         string   `json:"catalog_id" toml:"catalog_id"`
 	Shelf      string   `json:"shelf" toml:"shelf"`
 	Collection string   `json:"collection" toml:"collection"`
 	Title      string   `json:"title" toml:"title"`
@@ -441,6 +442,71 @@ func (ix *Index) Search(query, shelfName, collectionName string, tagClauses [][]
 			return nil, err
 		}
 		results = append(results, SearchResult{
+			ID:         m.id,
+			Shelf:      m.shelf,
+			Collection: m.collection,
+			Title:      m.title,
+			URL:        m.url,
+			Tags:       mark.Tags,
+		})
+	}
+	return results, nil
+}
+
+// DeletedMarks returns every soft-deleted mark, optionally filtered by shelf and
+// collection name, ordered by shelf, collection, and title.
+func (ix *Index) DeletedMarks(shelfName, collectionName string) ([]SearchResult, error) {
+	sqlQuery := `
+		SELECT m.catalog_id, m.title, m.url, c.name, s.name
+		FROM marks m
+		JOIN collections c ON c.collection_id = m.collection_id
+		JOIN shelves s ON s.shelf_id = c.shelf_id
+		WHERE m.deleted_at != ''`
+	var args []any
+
+	if shelfName != "" {
+		sqlQuery += " AND s.name = ?"
+		args = append(args, shelfName)
+	}
+	if collectionName != "" {
+		sqlQuery += " AND c.name = ?"
+		args = append(args, collectionName)
+	}
+	sqlQuery += " ORDER BY s.name, c.name, m.title"
+
+	rows, err := ix.db.Query(sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	type match struct {
+		id, title, url, collection, shelf string
+	}
+	var matches []match
+	for rows.Next() {
+		var m match
+		if err := rows.Scan(&m.id, &m.title, &m.url, &m.collection, &m.shelf); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	results := make([]SearchResult, 0, len(matches))
+	for _, m := range matches {
+		mark := &book.Mark{ID: m.id}
+		if err := ix.loadTags(mark); err != nil {
+			return nil, err
+		}
+		results = append(results, SearchResult{
+			ID:         m.id,
 			Shelf:      m.shelf,
 			Collection: m.collection,
 			Title:      m.title,

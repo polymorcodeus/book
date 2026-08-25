@@ -73,6 +73,10 @@ func Main() {
 	var markTags string
 	var markTitle string
 	var searchTags string
+	var restoreURL string
+	var restoreID string
+	var trash bool
+	var retentionDays int
 
 	cmd := &cli.Command{
 		Name:                  "book",
@@ -390,6 +394,11 @@ func Main() {
 								Usage:       "collection selection for mark",
 								Destination: &collection,
 							},
+							&cli.BoolFlag{
+								Name:        "trash",
+								Usage:       "list soft-deleted marks instead of active ones",
+								Destination: &trash,
+							},
 						},
 						Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 							if !config.Interactive && format == "" {
@@ -398,7 +407,7 @@ func Main() {
 							return ctx, nil
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := marks(&bookShelves, shelf, collection, format, config); err != nil {
+							if err := marks(&bookShelves, shelf, collection, format, trash, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -448,6 +457,38 @@ func Main() {
 							return nil
 						},
 					},
+					{
+						Name:  "restore",
+						Usage: "restore a soft-deleted bookmark",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "id",
+								Usage:       "catalog_id of the trashed mark to restore (preferred)",
+								Destination: &restoreID,
+							},
+							&cli.StringFlag{
+								Name:        "shelf",
+								Usage:       "shelf containing the trashed mark",
+								Destination: &shelf,
+							},
+							&cli.StringFlag{
+								Name:        "collection",
+								Usage:       "collection containing the trashed mark",
+								Destination: &collection,
+							},
+							&cli.StringFlag{
+								Name:        "url",
+								Usage:       "url of the trashed mark to restore",
+								Destination: &restoreURL,
+							},
+						},
+						Action: func(ctx context.Context, cmd *cli.Command) error {
+							if err := restoreMark(&bookShelves, restoreID, shelf, collection, restoreURL); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
+						},
+					},
 				},
 			},
 			{
@@ -455,6 +496,24 @@ func Main() {
 				Usage: "migrate shelf TOML files from v1 to v2 schema",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					if err := migrate(config); err != nil {
+						return cli.Exit(config.StyledError(err), 1)
+					}
+					return nil
+				},
+			},
+			{
+				Name:  "gc",
+				Usage: "purge soft-deleted marks older than the retention window",
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:        "retention-days",
+						Value:       30,
+						Usage:       "purge marks soft-deleted more than this many days ago",
+						Destination: &retentionDays,
+					},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					if err := gc(config, retentionDays); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil

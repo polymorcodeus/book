@@ -404,3 +404,54 @@ func TestSearchExcludesSoftDeleted(t *testing.T) {
 		t.Fatalf("Search excluded soft-deleted = %+v, want only the non-deleted mark", results)
 	}
 }
+
+func TestDeletedMarks(t *testing.T) {
+	cfg := testConfig(t)
+
+	v2 := 2
+	s := &book.Shelf{
+		SchemaVersion: &v2,
+		ID:            book.GenerateShelfID("work"),
+		Name:          "work",
+		Collections: map[string]*book.Collection{
+			"golang": {
+				ID:   book.GenerateCollectionID("work", "golang"),
+				Name: "golang",
+				Marks: []*book.Mark{
+					{ID: book.GenerateID("https://go.dev"), Name: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
+					{ID: book.GenerateID("https://pkg.go.dev"), Name: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
+				},
+			},
+		},
+	}
+	writeShelfFile(t, cfg, s)
+
+	ix, err := OpenIndex(cfg)
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer func() { _ = ix.Close() }()
+
+	if _, err := ix.Rebuild(cfg); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+
+	deleted, err := ix.DeletedMarks("", "")
+	if err != nil {
+		t.Fatalf("DeletedMarks: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0].Title != "Golang patterns" {
+		t.Fatalf("DeletedMarks = %+v, want only the soft-deleted mark", deleted)
+	}
+	if deleted[0].ID != book.GenerateID("https://pkg.go.dev") {
+		t.Fatalf("DeletedMarks ID = %q, want %q", deleted[0].ID, book.GenerateID("https://pkg.go.dev"))
+	}
+
+	filtered, err := ix.DeletedMarks("other", "")
+	if err != nil {
+		t.Fatalf("DeletedMarks filtered: %v", err)
+	}
+	if len(filtered) != 0 {
+		t.Fatalf("DeletedMarks(other) = %+v, want empty", filtered)
+	}
+}

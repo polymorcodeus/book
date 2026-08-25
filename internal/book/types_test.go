@@ -87,6 +87,7 @@ func TestVerifyUniqueURL(t *testing.T) {
 					Name: "col-1",
 					Marks: []*Mark{
 						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
+						{ID: "aabbccdd", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
 					},
 				},
 			},
@@ -106,9 +107,10 @@ func TestVerifyUniqueURL(t *testing.T) {
 	bs.LoadParents()
 
 	tests := []struct {
-		name    string
-		id      string
-		wantErr bool
+		name        string
+		id          string
+		wantErr     bool
+		wantRestore bool
 	}{
 		{
 			name:    "unique id passes",
@@ -125,6 +127,12 @@ func TestVerifyUniqueURL(t *testing.T) {
 			id:      "def67890",
 			wantErr: true,
 		},
+		{
+			name:        "trashed collision suggests restore",
+			id:          "aabbccdd",
+			wantErr:     true,
+			wantRestore: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,6 +143,9 @@ func TestVerifyUniqueURL(t *testing.T) {
 			}
 			if !tt.wantErr && err != nil {
 				t.Errorf("VerifyUniqueURL(%q) unexpected error: %v", tt.id, err)
+			}
+			if tt.wantRestore && (err == nil || !strings.Contains(err.Error(), "restore")) {
+				t.Errorf("VerifyUniqueURL(%q) error = %v, want restore hint", tt.id, err)
 			}
 		})
 	}
@@ -176,55 +187,166 @@ func TestAllTags(t *testing.T) {
 func TestDeleteMark(t *testing.T) {
 	markA := &Mark{Name: "a"}
 	markB := &Mark{Name: "b"}
-	markC := &Mark{Name: "c"}
+
+	col := &Collection{Marks: []*Mark{markA, markB}}
+	col.DeleteMark(markB)
+
+	if len(col.Marks) != 2 {
+		t.Fatalf("len(Marks) = %d, want 2 (soft delete retains the mark)", len(col.Marks))
+	}
+	if markB.DeletedAt == "" {
+		t.Errorf("DeleteMark did not stamp DeletedAt")
+	}
+	if _, err := time.Parse(time.RFC3339, markB.DeletedAt); err != nil {
+		t.Errorf("DeleteMark DeletedAt = %q, not RFC3339: %v", markB.DeletedAt, err)
+	}
+	if markA.DeletedAt != "" {
+		t.Errorf("DeleteMark stamped the wrong mark")
+	}
+
+	// Deleting again is a no-op that preserves the original timestamp.
+	first := markB.DeletedAt
+	col.DeleteMark(markB)
+	if markB.DeletedAt != first {
+		t.Errorf("DeleteMark not idempotent: %q -> %q", first, markB.DeletedAt)
+	}
+
+	// Deleting a nil mark is a no-op.
+	col.DeleteMark(nil)
+	if len(col.Marks) != 2 {
+		t.Errorf("len(Marks) = %d, want 2 after nil delete", len(col.Marks))
+	}
+}
+
+func TestIsDeleted(t *testing.T) {
+	if (&Mark{}).IsDeleted() {
+		t.Errorf("empty mark reported deleted")
+	}
+	if !(&Mark{DeletedAt: "x"}).IsDeleted() {
+		t.Errorf("mark with DeletedAt reported not deleted")
+	}
+}
+
+func TestMarksNamesExcludesDeleted(t *testing.T) {
+	col := &Collection{Marks: []*Mark{
+		{Name: "a"},
+		{Name: "b", DeletedAt: "x"},
+		{Name: "c"},
+	}}
+	want := []string{"a", "c"}
+	got := col.MarksNames()
+	if !slices.Equal(got, want) {
+		t.Errorf("MarksNames() = %v, want %v", got, want)
+	}
+}
+
+func TestMarkSkipsDeleted(t *testing.T) {
+	col := &Collection{Marks: []*Mark{
+		{Name: "a", DeletedAt: "x"},
+		{Name: "a"},
+	}}
+	got := col.Mark("a")
+	if got == nil || got.DeletedAt != "" {
+		t.Errorf("Mark() returned a soft-deleted mark or nil: %+v", got)
+	}
+	if col.Mark("missing") != nil {
+		t.Errorf("Mark() returned a mark for an unknown name")
+	}
+}
+
+func TestAllTagsExcludesDeleted(t *testing.T) {
+	col := &Collection{Marks: []*Mark{
+		{Tags: []string{"z", "a"}},
+		{Tags: []string{"deleted-only"}, DeletedAt: "x"},
+		{Tags: []string{"b", "a"}},
+	}}
+	want := []string{"a", "a", "b", "z"}
+	got := col.AllTags()
+	if !slices.Equal(got, want) {
+		t.Errorf("AllTags() = %v, want %v", got, want)
+	}
+}
+
+func TestPurgeDeletedMarks(t *testing.T) {
+	cutoff := time.Now().UTC().Add(-30 * 24 * time.Hour)
+	old := cutoff.Add(-24 * time.Hour).Format(time.RFC3339)
+	recent := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 
 	tests := []struct {
-		name       string
-		start      []*Mark
-		remove     *Mark
-		wantNames  []string
-		wantLength int
+		name string
+		col  *Collection
+		want int
 	}{
 		{
-			name:       "removes by pointer identity",
-			start:      []*Mark{markA, markB, markC},
-			remove:     markB,
-			wantNames:  []string{"a", "c"},
-			wantLength: 2,
+			name: "purges only old soft-deleted marks",
+			col: &Collection{Marks: []*Mark{
+				{Name: "active"},
+				{Name: "old", DeletedAt: old},
+				{Name: "recent", DeletedAt: recent},
+				{Name: "bad", DeletedAt: "not-a-timestamp"},
+			}},
+			want: 1,
 		},
 		{
-			name:       "removing absent mark is no-op",
-			start:      []*Mark{markA, markC},
-			remove:     markB,
-			wantNames:  []string{"a", "c"},
-			wantLength: 2,
-		},
-		{
-			name:       "removes only exact pointer match",
-			start:      []*Mark{markA, {Name: "a"}},
-			remove:     markA,
-			wantNames:  []string{"a"},
-			wantLength: 1,
+			name: "no soft-deleted marks",
+			col: &Collection{Marks: []*Mark{
+				{Name: "active"},
+			}},
+			want: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			col := &Collection{Marks: tt.start}
-			col.DeleteMark(tt.remove)
-
-			if len(col.Marks) != tt.wantLength {
-				t.Errorf("len(Marks) = %d, want %d", len(col.Marks), tt.wantLength)
-			}
-
-			gotNames := make([]string, len(col.Marks))
-			for i, m := range col.Marks {
-				gotNames[i] = m.Name
-			}
-			if !slices.Equal(gotNames, tt.wantNames) {
-				t.Errorf("remaining marks = %v, want %v", gotNames, tt.wantNames)
+			got := tt.col.PurgeDeletedMarks(cutoff)
+			if got != tt.want {
+				t.Fatalf("PurgeDeletedMarks() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+
+	// Verify the first case retains the right marks.
+	col := &Collection{Marks: []*Mark{
+		{Name: "active"},
+		{Name: "old", DeletedAt: old},
+		{Name: "recent", DeletedAt: recent},
+		{Name: "bad", DeletedAt: "not-a-timestamp"},
+	}}
+	col.PurgeDeletedMarks(cutoff)
+	var remaining []string
+	for _, m := range col.Marks {
+		remaining = append(remaining, m.Name)
+	}
+	want := []string{"active", "recent", "bad"}
+	if !slices.Equal(remaining, want) {
+		t.Errorf("remaining marks = %v, want %v", remaining, want)
+	}
+}
+
+func TestSoftDeletedByID(t *testing.T) {
+	bs := BookShelves{
+		{
+			Name: "shelf-a",
+			Collections: map[string]*Collection{
+				"col-1": {
+					Name: "col-1",
+					Marks: []*Mark{
+						{ID: "abc12345", Name: "active", URL: "https://example.com"},
+						{ID: "aabbccdd", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
+					},
+				},
+			},
+		},
+	}
+
+	if got := bs.SoftDeletedByID("aabbccdd"); got == nil || got.Name != "trashed" {
+		t.Errorf("SoftDeletedByID(trashed) = %+v, want trashed mark", got)
+	}
+	if got := bs.SoftDeletedByID("abc12345"); got != nil {
+		t.Errorf("SoftDeletedByID(active) = %+v, want nil", got)
+	}
+	if got := bs.SoftDeletedByID("missing"); got != nil {
+		t.Errorf("SoftDeletedByID(missing) = %+v, want nil", got)
 	}
 }
 
