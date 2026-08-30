@@ -19,9 +19,6 @@ func mark(bs *book.BookShelves, config *book.Config) error {
 func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
 	// Trash listing reads the derived index and is always non-interactive.
 	if trash {
-		if format == "" {
-			return fmt.Errorf("set --format=[json|toml] to list trashed marks")
-		}
 		idx, err := syncIndex(config)
 		if err != nil {
 			return err
@@ -30,13 +27,20 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 		if err != nil {
 			return err
 		}
-		if format == "toml" {
+		switch format {
+		case "toml":
 			wrapped := struct {
 				Marks []catalog.SearchResult `toml:"marks"`
 			}{deleted}
 			return book.PrintCatalog(wrapped, format)
+		case "json":
+			return book.PrintCatalog(deleted, format)
+		default:
+			for _, r := range deleted {
+				fmt.Printf("%s %s\n", r.Title, r.URL)
+			}
+			return nil
 		}
-		return book.PrintCatalog(deleted, format)
 	}
 
 	// Non-interactive path: all required flags provided
@@ -48,6 +52,15 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 		collection, err := idx.Collection(shelfName, collectionName)
 		if err != nil {
 			return err
+		}
+		if format == "" {
+			for _, m := range collection.Marks {
+				if m.IsDeleted() {
+					continue
+				}
+				fmt.Printf("%s %s\n", m.Name, m.URL)
+			}
+			return nil
 		}
 		return book.PrintCatalog(collection, format)
 	}

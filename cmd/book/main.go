@@ -244,12 +244,6 @@ func Main() {
 						Name:    "list",
 						Usage:   "list shelves",
 						Aliases: []string{"ls"},
-						Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-							if !config.Interactive && format == "" {
-								return ctx, cli.Exit(config.StyledError(fmt.Errorf("set --format=[json|toml] to output shelves non-interactively")), 1)
-							}
-							return ctx, nil
-						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							if err := shelves(&bookShelves, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
@@ -292,12 +286,6 @@ func Main() {
 						Name:    "list",
 						Usage:   "list collections in shelve",
 						Aliases: []string{"ls"},
-						Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-							if !config.Interactive && format == "" {
-								return ctx, cli.Exit(config.StyledError(fmt.Errorf("set --format=[json|toml] to output collections non-interactively")), 1)
-							}
-							return ctx, nil
-						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							if err := collections(&bookShelves, shelf, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
@@ -412,12 +400,6 @@ func Main() {
 								Usage:       "list soft-deleted marks instead of active ones",
 								Destination: &trash,
 							},
-						},
-						Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-							if !config.Interactive && format == "" {
-								return ctx, cli.Exit(config.StyledError(fmt.Errorf("set --format=[json|toml] to output collections non-interactively")), 1)
-							}
-							return ctx, nil
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							if err := marks(&bookShelves, shelf, collection, format, trash, config); err != nil {
