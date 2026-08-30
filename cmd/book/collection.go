@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/model"
 )
@@ -15,6 +17,12 @@ func collections(bs *book.BookShelves, shelfName string, format string, config *
 		names, err := idx.CollectionNames(shelfName)
 		if err != nil {
 			return err
+		}
+		if format == "" {
+			for _, name := range names {
+				fmt.Println(name)
+			}
+			return nil
 		}
 		return book.PrintCatalog(names, format)
 	}

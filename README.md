@@ -22,6 +22,7 @@ book shelf add                                # add a shelf interactively
 book collection add                           # add a collection to a shelf
 book mark add https://example.com             # add a bookmark (fetches title)
 book mark add https://example.com --shelf dev --collection tools --tags go,cli
+book shelf list                               # one name per line; pipe into fzf
 book mark list --shelf dev --collection tools --format json
 ```
 
@@ -71,6 +72,16 @@ go build .
    ```
 
 3. **List your bookmarks:**
+
+   Plain-text defaults are pipe-friendly and require no flags:
+
+   ```bash
+   book shelf list
+   book collection list --shelf dev
+   book mark list --shelf dev --collection docs
+   ```
+
+   Add `--format json` or `--format toml` for structured output:
 
    ```bash
    book shelf list --format json
@@ -156,7 +167,7 @@ collection_desc = "language and framework docs"
 | `--theme-file <path>` | `$XDG_CONFIG_HOME/book/theme.json` | Theme JSON path |
 | `--template-file <path>` | `$XDG_CONFIG_HOME/book/template.json` | Template JSON path |
 | `--catalog-format` | `toml` | Shelf file format (only `toml` supported) |
-| `--format <fmt>` | — | Output format for `list` commands (`json` or `toml`) |
+| `--format <fmt>` | — | Opt into structured output for `list` commands (`json` or `toml`; default is one line per item) |
 
 ## Configuration
 
