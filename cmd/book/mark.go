@@ -3,8 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
@@ -105,41 +103,32 @@ func searchMarks(query string, tags string, shelfName string, collectionName str
 }
 
 func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *book.Config) error {
-	if _, err := url.ParseRequestURI(URL); err != nil {
+	mark, err := book.NewMarkFromInput(URL, book.SplitTags(tags))
+	if err != nil {
 		return err
 	}
-	id := book.GenerateID(URL)
 
 	// Ensure URL hash not in bookshelves
-	if err := bs.VerifyUniqueURL(id); err != nil {
+	if err := bs.VerifyUniqueURL(mark.ID); err != nil {
 		return err
-	}
-
-	mark := book.Mark{
-		ID:   id,
-		URL:  URL,
-		Tags: strings.Split(tags, ","),
 	}
 
 	// Use provided title or fetch from URL
-	if title != "" {
-		mark.Name = title
-	} else {
+	fetched := book.TitleFetchResult{}
+	if title == "" {
 		fetchedTitle, err := web.LoadWebsite(mark.URL)
 		if err != nil {
-			if errors.Is(err, web.ErrTitleUnavailable) {
-				// Non-interactive path can't prompt for a title.
-				if shelfName != "" && collectionName != "" {
-					return fmt.Errorf("couldn't fetch title for %s; provide --title", mark.URL)
-				}
-				// Interactive path: leave the title empty so the user is
-				// forced to enter it manually in the edit form.
-			} else {
+			if !errors.Is(err, web.ErrTitleUnavailable) {
 				return err
 			}
+			fetched.Unavailable = true
 		} else {
-			mark.Name = fetchedTitle
+			fetched.Title = fetchedTitle
 		}
+	}
+	mark.Name, err = book.ResolveMarkTitle(title, mark.URL, fetched, config.Interactive)
+	if err != nil {
+		return err
 	}
 
 	// Non-interactive path: all required flags provided

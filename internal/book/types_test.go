@@ -514,3 +514,133 @@ func TestParseTagFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestSplitTags(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{name: "empty", in: "", want: nil},
+		{name: "whitespace", in: "   ", want: nil},
+		{name: "single", in: "go", want: []string{"go"}},
+		{name: "comma separated", in: "go,cli,tui", want: []string{"go", "cli", "tui"}},
+		{name: "trimmed", in: " go , cli ,", want: []string{"go", "cli"}},
+		{name: "empty parts skipped", in: "go,,cli", want: []string{"go", "cli"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SplitTags(tt.in)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("SplitTags(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSplitTagLines(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{name: "empty", in: "", want: nil},
+		{name: "single", in: "go", want: []string{"go"}},
+		{name: "newlines", in: "go\ncli\ntui", want: []string{"go", "cli", "tui"}},
+		{name: "extra spaces", in: "  go   cli  ", want: []string{"go", "cli"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SplitTagLines(tt.in)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("SplitTagLines(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		wantErr bool
+	}{
+		{name: "http", in: "http://example.com", wantErr: false},
+		{name: "https", in: "https://example.com/path", wantErr: false},
+		{name: "empty", in: "", wantErr: true},
+		{name: "plain text", in: "not-a-url", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateURL(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateURL(%q) error = %v, wantErr %t", tt.in, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestNewMarkFromInput(t *testing.T) {
+	m, err := NewMarkFromInput("https://example.com", []string{"go", "cli"})
+	if err != nil {
+		t.Fatalf("NewMarkFromInput error: %v", err)
+	}
+	if m.URL != "https://example.com" {
+		t.Errorf("URL = %q, want %q", m.URL, "https://example.com")
+	}
+	if m.ID != GenerateID("https://example.com") {
+		t.Errorf("ID = %q, want %q", m.ID, GenerateID("https://example.com"))
+	}
+	if !slices.Equal(m.Tags, []string{"go", "cli"}) {
+		t.Errorf("Tags = %v, want %v", m.Tags, []string{"go", "cli"})
+	}
+
+	if _, err := NewMarkFromInput("not-a-url", nil); err == nil {
+		t.Error("NewMarkFromInput with invalid URL expected error")
+	}
+}
+
+func TestResolveMarkTitle(t *testing.T) {
+	tests := []struct {
+		name        string
+		provided    string
+		fetched     TitleFetchResult
+		interactive bool
+		want        string
+		wantErr     bool
+	}{
+		{name: "provided wins", provided: "My Title", fetched: TitleFetchResult{Title: "Fetched"}, interactive: false, want: "My Title"},
+		{name: "fetched used", provided: "", fetched: TitleFetchResult{Title: "Fetched"}, interactive: false, want: "Fetched"},
+		{name: "unavailable interactive", provided: "", fetched: TitleFetchResult{Unavailable: true}, interactive: true, want: ""},
+		{name: "unavailable non-interactive", provided: "", fetched: TitleFetchResult{Unavailable: true}, interactive: false, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolveMarkTitle(tt.provided, "https://example.com", tt.fetched, tt.interactive)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ResolveMarkTitle() error = %v, wantErr %t", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("ResolveMarkTitle() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateNewShelfName(t *testing.T) {
+	bs := BookShelves{{Name: "existing"}}
+
+	if err := bs.ValidateNewShelfName("new"); err != nil {
+		t.Errorf("ValidateNewShelfName(\"new\") error = %v", err)
+	}
+	if err := bs.ValidateNewShelfName(""); err == nil {
+		t.Error("ValidateNewShelfName(\"\") expected error")
+	}
+	if err := bs.ValidateNewShelfName("existing"); err == nil {
+		t.Error("ValidateNewShelfName(\"existing\") expected error")
+	}
+}

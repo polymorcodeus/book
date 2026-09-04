@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -302,13 +301,7 @@ func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config,
 				Title("Name of new shelf?").
 				Description("Cannot be easily changed so choose wisely.").
 				Validate(func(s string) error {
-					if slices.Contains(bs.ShelfNames(), s) {
-						return fmt.Errorf("womp womp, shelf already exists")
-					}
-					if s == "" {
-						return fmt.Errorf("HARD requirement")
-					}
-					return nil
+					return bs.ValidateNewShelfName(s)
 				}).
 				Value(&m.shelf.Name),
 

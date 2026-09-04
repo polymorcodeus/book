@@ -196,6 +196,10 @@ Run `book catalog template` to generate a `template.json`. This controls the tit
 
 Built on [Charm](https://charm.sh/)'s excellent BubbleTea, Huh, and Lipgloss libraries. Uses `gofiglet` for the ASCII banner.
 
+## Development
+
+Business logic lives in `internal/book` as pure, testable functions: URL validation, tag parsing, title resolution, ID generation, and shelf/collection/mark helpers. The `cmd` and `internal/model` packages are thin adapters over this layer.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
