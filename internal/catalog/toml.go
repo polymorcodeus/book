@@ -36,6 +36,11 @@ func CreateTOML(t book.TOMLFile) (err error) {
 	if err != nil {
 		return err
 	}
+
+	if err := os.MkdirAll(filepath.Dir(writePath), 0o755); err != nil {
+		return fmt.Errorf("create parent directory: %w", err)
+	}
+
 	tmpPath := writePath + ".tmp"
 
 	f, err := os.Create(tmpPath)

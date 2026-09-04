@@ -3,7 +3,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image/color"
 	"log"
@@ -68,6 +67,10 @@ func Main() {
 
 	var shelf string
 	var collection string
+	var shelfName string
+	var shelfDescription string
+	var collectionName string
+	var collectionDescription string
 
 	var markURL string
 	var markTags string
@@ -75,6 +78,7 @@ func Main() {
 	var searchTags string
 	var restoreURL string
 	var restoreID string
+	var markID string
 	var trash bool
 	var retentionDays int
 	var fix bool
@@ -233,8 +237,20 @@ func Main() {
 					{
 						Name:  "add",
 						Usage: "add a new shelf",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "name",
+								Usage:       "name of the new shelf",
+								Destination: &shelfName,
+							},
+							&cli.StringFlag{
+								Name:        "description",
+								Usage:       "description of the new shelf",
+								Destination: &shelfDescription,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := addShelf(&bookShelves, config); err != nil {
+							if err := addShelf(&bookShelves, shelfName, shelfDescription, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -253,10 +269,20 @@ func Main() {
 					},
 					{
 						Name:    "remove",
-						Usage:   "remove an existing collection from a persona",
+						Usage:   "remove an existing shelf",
 						Aliases: []string{"rm"},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "name",
+								Usage:       "name of the shelf to remove",
+								Destination: &shelfName,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							return errors.ErrUnsupported
+							if err := removeShelf(&bookShelves, shelfName, confirm); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
 						},
 					},
 				},
@@ -275,8 +301,20 @@ func Main() {
 					{
 						Name:  "add",
 						Usage: "add a new collection to persona",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "name",
+								Usage:       "name of the new collection",
+								Destination: &collectionName,
+							},
+							&cli.StringFlag{
+								Name:        "description",
+								Usage:       "description of the new collection",
+								Destination: &collectionDescription,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := addCollection(&bookShelves, config); err != nil {
+							if err := addCollection(&bookShelves, shelf, collectionName, collectionDescription, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -297,8 +335,18 @@ func Main() {
 						Name:    "remove",
 						Usage:   "remove an existing collection from a persona",
 						Aliases: []string{"rm"},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "name",
+								Usage:       "name of the collection to remove",
+								Destination: &collectionName,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							return cli.Exit(config.StyledError(errors.ErrUnsupported), 1)
+							if err := removeCollection(&bookShelves, shelf, collectionName, confirm); err != nil {
+								return cli.Exit(config.StyledError(err), 1)
+							}
+							return nil
 						},
 					},
 				},
@@ -363,8 +411,30 @@ func Main() {
 					{
 						Name:  "edit",
 						Usage: "edit an existing bookmark",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "id",
+								Usage:       "catalog_id of the mark to edit",
+								Destination: &markID,
+							},
+							&cli.StringFlag{
+								Name:        "title",
+								Usage:       "new title for the mark",
+								Destination: &markTitle,
+							},
+							&cli.StringFlag{
+								Name:        "tags",
+								Usage:       "comma-separated tags to replace the mark's tags",
+								Destination: &markTags,
+							},
+							&cli.StringFlag{
+								Name:        "url",
+								Usage:       "new URL for the mark",
+								Destination: &markURL,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := editMark(&bookShelves, config); err != nil {
+							if err := editMark(&bookShelves, markID, markTitle, markTags, markURL, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -373,8 +443,20 @@ func Main() {
 					{
 						Name:  "get",
 						Usage: "browse bookmarks and open selected",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "id",
+								Usage:       "catalog_id of the mark to open",
+								Destination: &markID,
+							},
+							&cli.StringFlag{
+								Name:        "url",
+								Usage:       "URL of the mark to open (alternative to --id)",
+								Destination: &markURL,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := mark(&bookShelves, config); err != nil {
+							if err := getMark(&bookShelves, markID, markURL, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -445,8 +527,15 @@ func Main() {
 						Name:    "remove",
 						Usage:   "remove an existing bookmark",
 						Aliases: []string{"rm"},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "id",
+								Usage:       "catalog_id of the mark to remove",
+								Destination: &markID,
+							},
+						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := removeMark(&bookShelves, config); err != nil {
+							if err := removeMark(&bookShelves, markID, confirm, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil

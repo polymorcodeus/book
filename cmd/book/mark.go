@@ -10,8 +10,32 @@ import (
 	"github.com/polymorcodeus/book/internal/web"
 )
 
-func mark(bs *book.BookShelves, config *book.Config) error {
-	return runProgram(markRootScreen(bs, &book.Mark{}, "get", config))
+func getMark(bs *book.BookShelves, id, url, format string, config *book.Config) error {
+	if id == "" && url == "" {
+		if !config.Interactive {
+			return fmt.Errorf("missing required flag: --id or --url")
+		}
+		return runProgram(markRootScreen(bs, &book.Mark{}, "get", config))
+	}
+
+	var target *book.Mark
+	if id != "" {
+		target = bs.FindMarkByID(id)
+	} else {
+		target = bs.FindMarkByURL(url)
+	}
+	if target == nil {
+		if id != "" {
+			return fmt.Errorf("mark with id %q not found", id)
+		}
+		return fmt.Errorf("mark with url %q not found", url)
+	}
+
+	if format == "" {
+		fmt.Println(target.FullDetail())
+		return nil
+	}
+	return book.PrintCatalog(target, format)
 }
 
 func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
@@ -65,8 +89,37 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 	return runProgram(markRootScreen(bs, &book.Mark{}, "list", config))
 }
 
-func editMark(bs *book.BookShelves, config *book.Config) error {
-	return runProgram(markRootScreen(bs, &book.Mark{}, "edit", config))
+func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Config) error {
+	if err := requireFlag("id", id); err != nil {
+		if !config.Interactive {
+			return err
+		}
+		return runProgram(markRootScreen(bs, &book.Mark{}, "edit", config))
+	}
+
+	target := bs.FindMarkByID(id)
+	if target == nil {
+		return fmt.Errorf("mark with id %q not found", id)
+	}
+
+	if title == "" && tags == "" && url == "" {
+		return fmt.Errorf("no edits provided; pass --title, --tags, or --url")
+	}
+
+	if url != "" {
+		if err := book.ValidateURL(url); err != nil {
+			return err
+		}
+		if err := bs.VerifyUniqueURL(book.GenerateID(url), target); err != nil {
+			return err
+		}
+	}
+
+	if err := target.UpdateMark(title, url, book.SplitTags(tags)); err != nil {
+		return err
+	}
+	target.Touch()
+	return catalog.UpdateShelfFile(target.Shelf)
 }
 
 func searchMarks(query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
@@ -109,7 +162,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	}
 
 	// Ensure URL hash not in bookshelves
-	if err := bs.VerifyUniqueURL(mark.ID); err != nil {
+	if err := bs.VerifyUniqueURL(mark.ID, nil); err != nil {
 		return err
 	}
 
@@ -143,15 +196,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 		}
 		mark.Shelf = shelf
 		mark.Collection = collection
-		now := book.NowTimestamp()
-		mark.CreatedAt = now
-		mark.UpdatedAt = now
-		if collection.UpdatedAt != "" {
-			collection.UpdatedAt = now
-		}
-		if shelf.IsV2() {
-			shelf.UpdatedAt = now
-		}
+		mark.RecordAdd()
 		collection.AddMark(&mark)
 		if err := catalog.UpdateShelfFile(shelf); err != nil {
 			return err
@@ -162,8 +207,25 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	return runProgram(markRootScreen(bs, &mark, "add", config))
 }
 
-func removeMark(bs *book.BookShelves, config *book.Config) error {
-	return runProgram(markRootScreen(bs, &book.Mark{}, "delete", config))
+func removeMark(bs *book.BookShelves, id string, confirmed bool, config *book.Config) error {
+	if err := requireFlag("id", id); err != nil {
+		if !config.Interactive {
+			return err
+		}
+		return runProgram(markRootScreen(bs, &book.Mark{}, "delete", config))
+	}
+
+	if !confirmed {
+		return fmt.Errorf("remove mark requires --confirm")
+	}
+
+	target := bs.FindMarkByID(id)
+	if target == nil {
+		return fmt.Errorf("mark with id %q not found", id)
+	}
+
+	target.RecordDelete()
+	return catalog.UpdateShelfFile(target.Shelf)
 }
 
 func restoreMark(bs *book.BookShelves, id string, shelfName string, collectionName string, url string) error {
@@ -174,7 +236,7 @@ func restoreMark(bs *book.BookShelves, id string, shelfName string, collectionNa
 		if target == nil {
 			return fmt.Errorf("no trashed mark with id %q", id)
 		}
-		return clearSoftDelete(target.Shelf, target.Collection, target)
+		return clearSoftDelete(target)
 	}
 
 	if shelfName == "" || collectionName == "" || url == "" {
@@ -200,21 +262,14 @@ func restoreMark(bs *book.BookShelves, id string, shelfName string, collectionNa
 	if target == nil {
 		return fmt.Errorf("no trashed mark with url %q in %q/%q", url, shelfName, collectionName)
 	}
-	return clearSoftDelete(shelf, collection, target)
+	return clearSoftDelete(target)
 }
 
 // clearSoftDelete restores a soft-deleted mark in place and persists its shelf.
-func clearSoftDelete(shelf *book.Shelf, collection *book.Collection, target *book.Mark) error {
-	now := book.NowTimestamp()
+func clearSoftDelete(target *book.Mark) error {
 	target.DeletedAt = ""
-	target.UpdatedAt = now
-	if collection.UpdatedAt != "" {
-		collection.UpdatedAt = now
-	}
-	if shelf.IsV2() {
-		shelf.UpdatedAt = now
-	}
-	return catalog.UpdateShelfFile(shelf)
+	target.Touch()
+	return catalog.UpdateShelfFile(target.Shelf)
 }
 
 func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *book.Config) model.RootScreen {

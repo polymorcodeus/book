@@ -354,19 +354,16 @@ func editCollectionForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Co
 
 func (m *collectionModel) updateShelfFileCmd(action string) tea.Cmd {
 	return func() tea.Msg {
-		now := book.NowTimestamp()
 		if action == "add" {
 			m.shelf.AddCollection(m.collection)
 
 			m.collection.ID = book.GenerateCollectionID(m.shelf.Name, m.collection.Name)
-			m.collection.CreatedAt = now
-			m.collection.UpdatedAt = now
+			m.collection.CreatedAt = book.NowTimestamp()
+			m.collection.UpdatedAt = m.collection.CreatedAt
+			m.collection.Touch()
 		}
 		if action == "edit" && m.collection.UpdatedAt != "" {
-			m.collection.UpdatedAt = now
-		}
-		if m.shelf.IsV2() {
-			m.shelf.UpdatedAt = now
+			m.collection.Touch()
 		}
 		if err := catalog.UpdateShelfFile(m.shelf); err != nil {
 			return errMsg{err}

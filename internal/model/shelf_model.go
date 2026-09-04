@@ -366,7 +366,7 @@ func (m *shelfModel) updateShelfFileCmd(action string) tea.Cmd {
 			m.shelf.AddFileDetail(m.config)
 
 			now := book.NowTimestamp()
-			m.shelf.SchemaVersion = ptrInt(2)
+			m.shelf.SchemaVersion = book.IntPtr(2)
 			m.shelf.ID = book.GenerateShelfID(m.shelf.Name)
 			m.shelf.CreatedAt = now
 			m.shelf.UpdatedAt = now
