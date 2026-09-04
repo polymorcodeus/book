@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -458,6 +459,82 @@ func NowTimestamp() string {
 func MergeTags(sources ...[]string) []string {
 	merged := DedupUnique(sources...)
 	return slices.DeleteFunc(merged, func(e string) bool { return e == "" })
+}
+
+// SplitTags parses a comma-separated tag string into trimmed, non-empty tags.
+func SplitTags(input string) []string {
+	if strings.TrimSpace(input) == "" {
+		return nil
+	}
+	parts := strings.Split(input, ",")
+	tags := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			tags = append(tags, t)
+		}
+	}
+	return tags
+}
+
+// SplitTagLines parses whitespace-separated tag text (as entered in the TUI
+// free-tag field) into trimmed, non-empty tags.
+func SplitTagLines(input string) []string {
+	return strings.Fields(input)
+}
+
+// ValidateURL checks that raw is a parseable, absolute URL suitable for a mark.
+func ValidateURL(raw string) error {
+	if _, err := url.ParseRequestURI(raw); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewMarkFromInput builds a Mark from raw input, validating the URL and
+// generating a stable catalog ID. It does not resolve titles or parent pointers.
+func NewMarkFromInput(rawURL string, tags []string) (Mark, error) {
+	if err := ValidateURL(rawURL); err != nil {
+		return Mark{}, err
+	}
+	return Mark{
+		ID:   GenerateID(rawURL),
+		URL:  rawURL,
+		Tags: tags,
+	}, nil
+}
+
+// TitleFetchResult carries the outcome of fetching a page title for a mark.
+type TitleFetchResult struct {
+	Title       string
+	Unavailable bool
+}
+
+// ResolveMarkTitle selects the title for a new mark. A caller-provided title
+// always wins. When fetching is unavailable, interactive callers receive an
+// empty string (so the TUI can prompt later), while non-interactive callers
+// receive an error asking them to provide --title.
+func ResolveMarkTitle(providedTitle, url string, fetched TitleFetchResult, interactive bool) (string, error) {
+	if providedTitle != "" {
+		return providedTitle, nil
+	}
+	if fetched.Unavailable {
+		if interactive {
+			return "", nil
+		}
+		return "", fmt.Errorf("couldn't fetch title for %s; provide --title", url)
+	}
+	return fetched.Title, nil
+}
+
+// ValidateNewShelfName returns an error if name is empty or already in use.
+func (bs *BookShelves) ValidateNewShelfName(name string) error {
+	if name == "" {
+		return fmt.Errorf("HARD requirement")
+	}
+	if slices.Contains(bs.ShelfNames(), name) {
+		return fmt.Errorf("womp womp, shelf already exists")
+	}
+	return nil
 }
 
 // ParseTagFilter parses the search --tags grammar into AND clauses of OR tags.

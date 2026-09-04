@@ -483,7 +483,7 @@ func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, ac
 				Description("additional and collection tags shown").
 				OptionsFunc(func() []huh.Option[string] {
 					collectTags := bs.Shelf(m.mark.Shelf.Name).Collection(m.mark.Collection.Name).AllTags()
-					userTags := strings.Fields(tempTags)
+					userTags := book.SplitTagLines(tempTags)
 					return huh.NewOptions(book.MergeTags(m.mark.Tags, userTags, collectTags)...)
 				}, &tempTags).
 				Key("markTags").
