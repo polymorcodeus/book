@@ -137,7 +137,7 @@ func TestVerifyUniqueURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := bs.VerifyUniqueURL(tt.id)
+			err := bs.VerifyUniqueURL(tt.id, nil)
 			if tt.wantErr && err == nil {
 				t.Errorf("VerifyUniqueURL(%q) expected error, got nil", tt.id)
 			}
@@ -424,9 +424,9 @@ func TestShelfIsV2(t *testing.T) {
 		wantV2 bool
 	}{
 		{"nil schema version", Shelf{}, false},
-		{"v1 schema version", Shelf{SchemaVersion: intPtr(1)}, false},
-		{"v2 schema version", Shelf{SchemaVersion: intPtr(2)}, true},
-		{"v3 schema version", Shelf{SchemaVersion: intPtr(3)}, true},
+		{"v1 schema version", Shelf{SchemaVersion: IntPtr(1)}, false},
+		{"v2 schema version", Shelf{SchemaVersion: IntPtr(2)}, true},
+		{"v3 schema version", Shelf{SchemaVersion: IntPtr(3)}, true},
 	}
 
 	for _, tc := range cases {
@@ -436,10 +436,6 @@ func TestShelfIsV2(t *testing.T) {
 			}
 		})
 	}
-}
-
-func intPtr(v int) *int {
-	return &v
 }
 
 func TestMergeTags(t *testing.T) {
@@ -642,5 +638,284 @@ func TestValidateNewShelfName(t *testing.T) {
 	}
 	if err := bs.ValidateNewShelfName("existing"); err == nil {
 		t.Error("ValidateNewShelfName(\"existing\") expected error")
+	}
+}
+
+func TestNewShelf(t *testing.T) {
+	if _, err := NewShelf("", ""); err == nil {
+		t.Error("NewShelf with empty name expected error")
+	}
+
+	s, err := NewShelf("test-shelf", "a description")
+	if err != nil {
+		t.Fatalf("NewShelf error: %v", err)
+	}
+	if s.Name != "test-shelf" {
+		t.Errorf("Name = %q, want %q", s.Name, "test-shelf")
+	}
+	if s.Description != "a description" {
+		t.Errorf("Description = %q, want %q", s.Description, "a description")
+	}
+	if s.ID != GenerateShelfID("test-shelf") {
+		t.Errorf("ID = %q, want %q", s.ID, GenerateShelfID("test-shelf"))
+	}
+	if s.SchemaVersion == nil || *s.SchemaVersion != 2 {
+		t.Errorf("SchemaVersion = %v, want 2", s.SchemaVersion)
+	}
+	if s.Collections == nil {
+		t.Error("Collections map not initialized")
+	}
+	if s.CreatedAt == "" || s.UpdatedAt == "" {
+		t.Error("timestamps not set")
+	}
+}
+
+func TestBookShelvesRemoveShelf(t *testing.T) {
+	bs := BookShelves{
+		{Name: "keep"},
+		{Name: "remove"},
+	}
+
+	removed, err := bs.RemoveShelf("remove")
+	if err != nil {
+		t.Fatalf("RemoveShelf error: %v", err)
+	}
+	if removed.Name != "remove" {
+		t.Errorf("removed.Name = %q, want %q", removed.Name, "remove")
+	}
+	if len(bs) != 1 || bs[0].Name != "keep" {
+		t.Errorf("after remove bs = %v, want one shelf named keep", bs.ShelfNames())
+	}
+
+	if _, err := bs.RemoveShelf("missing"); err == nil {
+		t.Error("RemoveShelf missing expected error")
+	}
+}
+
+func TestNewCollection(t *testing.T) {
+	if _, err := NewCollection(nil, "name", ""); err == nil {
+		t.Error("NewCollection with nil shelf expected error")
+	}
+	if _, err := NewCollection(&Shelf{Name: "s"}, "", ""); err == nil {
+		t.Error("NewCollection with empty name expected error")
+	}
+
+	shelf := &Shelf{Name: "shelf-a"}
+	c, err := NewCollection(shelf, "col-a", "desc")
+	if err != nil {
+		t.Fatalf("NewCollection error: %v", err)
+	}
+	if c.Name != "col-a" {
+		t.Errorf("Name = %q, want %q", c.Name, "col-a")
+	}
+	if c.Shelf != shelf {
+		t.Error("Shelf back-pointer not set")
+	}
+	if c.ID != GenerateCollectionID("shelf-a", "col-a") {
+		t.Errorf("ID = %q, want %q", c.ID, GenerateCollectionID("shelf-a", "col-a"))
+	}
+}
+
+func TestShelfRemoveCollection(t *testing.T) {
+	s := &Shelf{
+		Collections: map[string]*Collection{
+			"keep":    {Name: "keep"},
+			"discard": {Name: "discard"},
+		},
+	}
+
+	if err := s.RemoveCollection("discard"); err != nil {
+		t.Fatalf("RemoveCollection error: %v", err)
+	}
+	if _, ok := s.Collections["discard"]; ok {
+		t.Error("discard collection still present")
+	}
+
+	if err := s.RemoveCollection("missing"); err == nil {
+		t.Error("RemoveCollection missing expected error")
+	}
+}
+
+func TestBookShelvesFindMarkByID(t *testing.T) {
+	bs := BookShelves{
+		{
+			Name: "shelf-a",
+			Collections: map[string]*Collection{
+				"col-1": {
+					Name: "col-1",
+					Marks: []*Mark{
+						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
+					},
+				},
+			},
+		},
+	}
+
+	got := bs.FindMarkByID("abc12345")
+	if got == nil {
+		t.Fatal("FindMarkByID expected match")
+	}
+	if got.Name != "first" {
+		t.Errorf("FindMarkByID Name = %q, want %q", got.Name, "first")
+	}
+	if got.Shelf == nil || got.Shelf.Name != "shelf-a" {
+		t.Error("FindMarkByID did not set Shelf back-pointer")
+	}
+	if got.Collection == nil || got.Collection.Name != "col-1" {
+		t.Error("FindMarkByID did not set Collection back-pointer")
+	}
+
+	if bs.FindMarkByID("nope") != nil {
+		t.Error("FindMarkByID unexpected match")
+	}
+}
+
+func TestMarkUpdateMark(t *testing.T) {
+	m := &Mark{
+		ID:   GenerateID("https://example.com/old"),
+		Name: "Old",
+		URL:  "https://example.com/old",
+		Tags: []string{"a"},
+	}
+
+	if err := m.UpdateMark("New", "", []string{"b", "c"}); err != nil {
+		t.Fatalf("UpdateMark error: %v", err)
+	}
+	if m.Name != "New" {
+		t.Errorf("Name = %q, want %q", m.Name, "New")
+	}
+	if !slices.Equal(m.Tags, []string{"b", "c"}) {
+		t.Errorf("Tags = %v, want %v", m.Tags, []string{"b", "c"})
+	}
+	if m.URL != "https://example.com/old" {
+		t.Errorf("URL = %q, want unchanged", m.URL)
+	}
+
+	if err := m.UpdateMark("", "not-a-url", nil); err == nil {
+		t.Error("UpdateMark with invalid URL expected error")
+	}
+
+	if err := m.UpdateMark("", "https://example.com/new", nil); err != nil {
+		t.Fatalf("UpdateMark URL change error: %v", err)
+	}
+	if m.URL != "https://example.com/new" {
+		t.Errorf("URL = %q, want %q", m.URL, "https://example.com/new")
+	}
+	if m.ID != GenerateID("https://example.com/new") {
+		t.Errorf("ID = %q, want regenerated ID", m.ID)
+	}
+}
+
+func TestBookShelvesFindMarkByURL(t *testing.T) {
+	bs := BookShelves{
+		{
+			Name: "shelf-a",
+			Collections: map[string]*Collection{
+				"col-1": {
+					Name: "col-1",
+					Marks: []*Mark{
+						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
+						{ID: "deadbeef", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
+					},
+				},
+			},
+		},
+	}
+	bs.LoadParents()
+
+	got := bs.FindMarkByURL("https://example.com/first")
+	if got == nil {
+		t.Fatal("FindMarkByURL expected match")
+	}
+	if got.Name != "first" {
+		t.Errorf("Name = %q, want %q", got.Name, "first")
+	}
+	if got.Shelf == nil || got.Shelf.Name != "shelf-a" {
+		t.Error("FindMarkByURL did not set Shelf back-pointer")
+	}
+
+	if bs.FindMarkByURL("https://example.com/trashed") != nil {
+		t.Error("FindMarkByURL should skip deleted marks")
+	}
+	if bs.FindMarkByURL("https://example.com/missing") != nil {
+		t.Error("FindMarkByURL unexpected match")
+	}
+}
+
+func TestMarkTouch(t *testing.T) {
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2), UpdatedAt: "old"}
+	collection := &Collection{Name: "col-1", Shelf: shelf, UpdatedAt: "old"}
+	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+
+	mark.Touch()
+
+	if mark.UpdatedAt == "" || mark.UpdatedAt == "old" {
+		t.Error("Touch did not update mark UpdatedAt")
+	}
+	if collection.UpdatedAt == "old" {
+		t.Error("Touch did not update collection UpdatedAt")
+	}
+	if shelf.UpdatedAt == "old" {
+		t.Error("Touch did not update shelf UpdatedAt")
+	}
+}
+
+func TestMarkRecordAdd(t *testing.T) {
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2)}
+	collection := &Collection{Name: "col-1", Shelf: shelf}
+	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+
+	mark.RecordAdd()
+
+	if mark.CreatedAt == "" {
+		t.Error("RecordAdd did not set CreatedAt")
+	}
+	if mark.UpdatedAt != mark.CreatedAt {
+		t.Error("RecordAdd did not set UpdatedAt equal to CreatedAt")
+	}
+	if shelf.UpdatedAt == "" {
+		t.Error("RecordAdd did not cascade to shelf")
+	}
+}
+
+func TestMarkRecordDelete(t *testing.T) {
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2)}
+	collection := &Collection{Name: "col-1", Shelf: shelf, Marks: make([]*Mark, 0)}
+	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+	collection.AddMark(mark)
+
+	mark.RecordDelete()
+
+	if !mark.IsDeleted() {
+		t.Error("RecordDelete did not soft-delete mark")
+	}
+	if mark.UpdatedAt == "" {
+		t.Error("RecordDelete did not update mark UpdatedAt")
+	}
+	if shelf.UpdatedAt == "" {
+		t.Error("RecordDelete did not cascade to shelf")
+	}
+}
+
+func TestUpdateMarkClearsTags(t *testing.T) {
+	m := &Mark{
+		ID:   GenerateID("https://example.com"),
+		Name: "Old",
+		URL:  "https://example.com",
+		Tags: []string{"a", "b"},
+	}
+
+	if err := m.UpdateMark("", "", []string{}); err != nil {
+		t.Fatalf("UpdateMark error: %v", err)
+	}
+	if len(m.Tags) != 0 {
+		t.Errorf("Tags = %v, want empty", m.Tags)
+	}
+
+	if err := m.UpdateMark("", "", nil); err != nil {
+		t.Fatalf("UpdateMark nil error: %v", err)
+	}
+	if len(m.Tags) != 0 {
+		t.Errorf("Tags = %v, want still empty after nil", m.Tags)
 	}
 }

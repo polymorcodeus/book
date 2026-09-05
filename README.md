@@ -18,8 +18,8 @@ Bookmarks ship with stable identifiers (`catalog_id`), full-text search (`book m
 ## Quick Demo
 
 ```bash
-book shelf add                                # add a shelf interactively
-book collection add                           # add a collection to a shelf
+book shelf add --name dev                     # add a shelf non-interactively
+book collection add --shelf dev --name docs   # add a collection to a shelf
 book mark add https://example.com             # add a bookmark (fetches title)
 book mark add https://example.com --shelf dev --collection tools --tags go,cli
 book shelf list                               # one name per line; pipe into fzf
@@ -60,7 +60,16 @@ go build .
    book --interactive mark add https://example.com
    ```
 
-2. **Add a bookmark non-interactively:**
+2. **Manage shelves and collections non-interactively:**
+
+   ```bash
+   book shelf add --name dev --description "software bookmarks"
+   book collection add --shelf dev --name docs
+   book shelf remove --name dev --confirm
+   book collection remove --shelf dev --name docs --confirm
+   ```
+
+3. **Add, edit, get, and remove bookmarks non-interactively:**
 
    ```bash
    book mark add \
@@ -69,9 +78,13 @@ go build .
      --collection docs \
      --title "Effective Go" \
      --tags go,best-practices
+
+   book mark get --id <catalog_id>
+   book mark edit --id <catalog_id> --tags go,best-practices
+   book mark remove --id <catalog_id> --confirm
    ```
 
-3. **List your bookmarks:**
+4. **List your bookmarks:**
 
    Plain-text defaults are pipe-friendly and require no flags:
 
@@ -87,6 +100,7 @@ go build .
    book shelf list --format json
    book collection list --shelf dev --format json
    book mark list --shelf dev --collection docs --format json
+   book mark get --id <catalog_id> --format json
    ```
 
 ## How It Works
@@ -134,18 +148,18 @@ collection_desc = "language and framework docs"
 
 | Command | What it does |
 | --- | --- |
-| `shelf add` | Add a new shelf |
+| `shelf add --name <name>` | Add a new shelf (falls back to TUI when `--interactive`) |
 | `shelf list` | List all shelves |
-| `shelf remove` | Remove a shelf |
-| `collection add` | Add a new collection |
-| `collection list` | List collections in a shelf |
-| `collection remove` | Remove a collection |
+| `shelf remove --name <name> --confirm` | Remove a shelf |
+| `collection add --shelf <shelf> --name <name>` | Add a new collection (falls back to TUI when `--interactive`) |
+| `collection list --shelf <shelf>` | List collections in a shelf |
+| `collection remove --shelf <shelf> --name <name> --confirm` | Remove a collection |
 | `mark add <url>` | Add a bookmark (optionally non-interactive) |
-| `mark edit` | Edit an existing bookmark (TUI) |
-| `mark get` | Browse bookmarks and open one (TUI) |
-| `mark list` | List bookmarks in a collection (`--trash` lists soft-deleted) |
+| `mark edit --id <id> [--title/--tags/--url]` | Edit an existing bookmark (falls back to TUI when `--interactive`) |
+| `mark get --id <id>` | Show a bookmark (falls back to TUI when `--interactive`) |
+| `mark list --shelf <shelf> --collection <collection>` | List bookmarks in a collection (`--trash` lists soft-deleted) |
 | `mark search <query>` | Full-text search by title, URL, or tags |
-| `mark remove` | Soft-delete a bookmark (TUI) |
+| `mark remove --id <id> --confirm` | Soft-delete a bookmark (falls back to TUI when `--interactive`) |
 | `mark restore` | Restore a soft-deleted bookmark (`--id`, or `--shelf`/`--collection`/`--url`) |
 | `migrate` | Upgrade v1 shelf files to the v2 schema |
 | `gc` | Purge soft-deleted marks past the retention window |
@@ -167,7 +181,7 @@ collection_desc = "language and framework docs"
 | `--theme-file <path>` | `$XDG_CONFIG_HOME/book/theme.json` | Theme JSON path |
 | `--template-file <path>` | `$XDG_CONFIG_HOME/book/template.json` | Template JSON path |
 | `--catalog-format` | `toml` | Shelf file format (only `toml` supported) |
-| `--format <fmt>` | — | Opt into structured output for `list` commands (`json` or `toml`; default is one line per item) |
+| `--format <fmt>` | — | Opt into structured output for `list` and `mark get` (`json` or `toml`; default is human-readable text) |
 
 ## Configuration
 

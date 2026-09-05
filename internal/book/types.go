@@ -166,14 +166,14 @@ func (bs *BookShelves) LoadParents() {
 	}
 }
 
-// VerifyUniqueURL returns an error if the given ID already exists in any mark.
-// A collision with a soft-deleted mark points at `book mark restore` rather
-// than re-adding the URL.
-func (bs *BookShelves) VerifyUniqueURL(id string) error {
+// VerifyUniqueURL returns an error if the given ID already exists in any mark
+// other than exclude. A collision with a soft-deleted mark points at
+// `book mark restore` rather than re-adding the URL.
+func (bs *BookShelves) VerifyUniqueURL(id string, exclude *Mark) error {
 	for _, b := range *bs {
 		for _, c := range b.Collections {
 			for _, m := range c.Marks {
-				if m.ID != id {
+				if m == exclude || m.ID != id {
 					continue
 				}
 				if m.IsDeleted() {
@@ -257,6 +257,13 @@ func (s *Shelf) AddCollection(c *Collection) {
 	s.Collections[c.Name] = c
 }
 
+// Touch updates the shelf's UpdatedAt if it tracks v2 timestamps.
+func (s *Shelf) Touch() {
+	if s.IsV2() {
+		s.UpdatedAt = NowTimestamp()
+	}
+}
+
 // PurgeDeletedMarks hard-removes soft-deleted marks older than cutoff from every
 // collection in the shelf, returning the number of marks removed.
 func (s *Shelf) PurgeDeletedMarks(cutoff time.Time) int {
@@ -338,6 +345,18 @@ func (c *Collection) AddMark(m *Mark) {
 	c.Marks = append(c.Marks, m)
 }
 
+// Touch updates the collection's UpdatedAt and cascades to its shelf when the
+// shelf tracks v2 timestamps.
+func (c *Collection) Touch() {
+	now := NowTimestamp()
+	if c.UpdatedAt != "" {
+		c.UpdatedAt = now
+	}
+	if c.Shelf != nil && c.Shelf.IsV2() {
+		c.Shelf.UpdatedAt = now
+	}
+}
+
 // DeleteMark soft-deletes the given mark by stamping its DeletedAt field. The
 // mark remains in the collection until gc purges it, so accidental removals can
 // be restored.
@@ -398,6 +417,35 @@ func (m *Mark) IsDeleted() bool {
 	return m.DeletedAt != ""
 }
 
+// Touch updates the mark's UpdatedAt and cascades to its collection and shelf
+// when they track v2 timestamps.
+func (m *Mark) Touch() {
+	now := NowTimestamp()
+	m.UpdatedAt = now
+	if m.Collection != nil && m.Collection.UpdatedAt != "" {
+		m.Collection.UpdatedAt = now
+	}
+	if m.Shelf != nil && m.Shelf.IsV2() {
+		m.Shelf.UpdatedAt = now
+	}
+}
+
+// RecordAdd sets CreatedAt and UpdatedAt and cascades the update to the mark's
+// collection and shelf.
+func (m *Mark) RecordAdd() {
+	m.CreatedAt = NowTimestamp()
+	m.Touch()
+}
+
+// RecordDelete soft-deletes the mark and cascades the update to its collection
+// and shelf.
+func (m *Mark) RecordDelete() {
+	if m.Collection != nil {
+		m.Collection.DeleteMark(m)
+	}
+	m.Touch()
+}
+
 // FullDetail returns a verbose summary including shelf, collection, title, URL, and tags.
 func (m *Mark) FullDetail() string {
 	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", m.Shelf.Name, m.Collection.Name, m.Name, m.URL, strings.Join(m.Tags, ","))
@@ -451,6 +499,11 @@ func GenerateCollectionID(shelfName, collectionName string) string {
 // NowTimestamp returns the current UTC time formatted as RFC3339.
 func NowTimestamp() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// IntPtr returns a pointer to the given int value.
+func IntPtr(v int) *int {
+	return &v
 }
 
 // MergeTags combines multiple tag slices, deduplicates, removes empty strings,
@@ -576,6 +629,121 @@ func PrintCatalog[T any](item T, format string) error {
 		if err := toml.NewEncoder(os.Stdout).Encode(item); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// NewShelf creates a new v2 shelf with the given name and description.
+func NewShelf(name, description string) (*Shelf, error) {
+	if name == "" {
+		return nil, fmt.Errorf("shelf name is required")
+	}
+	now := NowTimestamp()
+	return &Shelf{
+		SchemaVersion: IntPtr(2),
+		ID:            GenerateShelfID(name),
+		Name:          name,
+		Description:   description,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		Collections:   make(map[string]*Collection),
+	}, nil
+}
+
+// RemoveShelf removes a shelf by name from the loaded shelves and returns the
+// removed shelf so the caller can delete its on-disk file.
+func (bs *BookShelves) RemoveShelf(name string) (Shelf, error) {
+	for i := range *bs {
+		if (*bs)[i].Name == name {
+			removed := (*bs)[i]
+			*bs = append((*bs)[:i], (*bs)[i+1:]...)
+			return removed, nil
+		}
+	}
+	return Shelf{}, fmt.Errorf("shelf %q not found", name)
+}
+
+// NewCollection creates a new collection and wires it to the given shelf.
+func NewCollection(shelf *Shelf, name, description string) (*Collection, error) {
+	if shelf == nil || shelf.Name == "" {
+		return nil, fmt.Errorf("shelf is required")
+	}
+	if name == "" {
+		return nil, fmt.Errorf("collection name is required")
+	}
+	now := NowTimestamp()
+	return &Collection{
+		Shelf:       shelf,
+		ID:          GenerateCollectionID(shelf.Name, name),
+		Name:        name,
+		Description: description,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}, nil
+}
+
+// RemoveCollection removes a collection by name from the shelf.
+func (s *Shelf) RemoveCollection(name string) error {
+	if _, ok := s.Collections[name]; !ok {
+		return fmt.Errorf("collection %q not found in shelf %q", name, s.Name)
+	}
+	delete(s.Collections, name)
+	return nil
+}
+
+// FindMarkByID returns the first mark matching id across all shelves and
+// collections, or nil if none is found.
+func (bs *BookShelves) FindMarkByID(id string) *Mark {
+	for i := range *bs {
+		shelf := &(*bs)[i]
+		for _, c := range shelf.Collections {
+			for _, m := range c.Marks {
+				if m.ID == id {
+					m.Shelf = shelf
+					m.Collection = c
+					return m
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// FindMarkByURL returns the first non-deleted mark matching url across all
+// shelves and collections, or nil if none is found.
+func (bs *BookShelves) FindMarkByURL(url string) *Mark {
+	for i := range *bs {
+		shelf := &(*bs)[i]
+		for _, c := range shelf.Collections {
+			for _, m := range c.Marks {
+				if m.URL == url && !m.IsDeleted() {
+					m.Shelf = shelf
+					m.Collection = c
+					return m
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// UpdateMark applies edits to a mark. Empty strings leave title and url
+// unchanged; a nil tags slice leaves tags unchanged, while an empty (non-nil)
+// slice clears them. If url is provided it is validated and the mark's catalog
+// ID is regenerated.
+func (m *Mark) UpdateMark(title, url string, tags []string) error {
+	if url != "" {
+		if err := ValidateURL(url); err != nil {
+			return err
+		}
+		m.URL = url
+		m.ID = GenerateID(url)
+	}
+	if title != "" {
+		m.Name = title
+	}
+	if tags != nil {
+		m.Tags = tags
 	}
 	return nil
 }
