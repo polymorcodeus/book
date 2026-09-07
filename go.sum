@@ -74,8 +74,8 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/polymorcodeus/gofiglet v0.2.1 h1:TN/LxxLpfoWDTpoq5/5QBUJV3kiNFg6kOF1Q8z4Skfs=
-github.com/polymorcodeus/gofiglet v0.2.1/go.mod h1:ji+eY1w+SFfh9InR9PncFryjdUOO9lkV6GstXB3riYE=
+github.com/polymorcodeus/gofiglet v0.3.0 h1:mmDW36/7eDcwe5cSneceu4Q8v9pRQEGg/rixjenZStw=
+github.com/polymorcodeus/gofiglet v0.3.0/go.mod h1:ji+eY1w+SFfh9InR9PncFryjdUOO9lkV6GstXB3riYE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
