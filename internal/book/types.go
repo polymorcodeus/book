@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -132,14 +131,15 @@ func (bs *BookShelves) AddShelf(shelf Shelf) {
 	*bs = append(*bs, shelf)
 }
 
-// Shelf returns a shelf by name, or a zero-value Shelf if not found.
-func (bs *BookShelves) Shelf(s string) *Shelf {
+// Shelf returns a shelf by name. The second result is true if the shelf was
+// found and false otherwise.
+func (bs *BookShelves) Shelf(s string) (*Shelf, bool) {
 	for i := range *bs {
 		if (*bs)[i].Name == s {
-			return &(*bs)[i]
+			return &(*bs)[i], true
 		}
 	}
-	return &Shelf{}
+	return nil, false
 }
 
 // ShelfNames returns the names of all loaded shelves.
@@ -463,19 +463,6 @@ func DedupUnique[T comparable](slice ...[]T) []T {
 		}
 	}
 	return unique
-}
-
-// StructIsEmpty reports whether the given struct pointer is nil or contains only zero values.
-func StructIsEmpty[T any](ptr *T) bool {
-	if ptr == nil {
-		return true
-	}
-
-	val := reflect.ValueOf(ptr).Elem()
-
-	// This will return true if all fields within the struct have their
-	// zero values (e.g., 0 for int, "" for string, nil for pointers, etc.).
-	return val.IsZero()
 }
 
 // GenerateID returns the first 8 hex characters of the SHA-256 hash of a URL.

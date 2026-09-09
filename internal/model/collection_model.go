@@ -61,7 +61,8 @@ func (m getCollectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.get.book.form.State == huh.StateCompleted {
-		m.get.shelf = m.get.book.shelves.Shelf(m.get.book.form.GetString("shelf"))
+		shelf, _ := m.get.book.shelves.Shelf(m.get.book.form.GetString("shelf"))
+		m.get.shelf = shelf
 		switch m.action {
 		case "add":
 			editScreen := editCollectionForm(m.get.book.shelves, m.get.shelf, m.get.config, m.action)
@@ -153,9 +154,13 @@ func GetCollectionForm(bs *book.BookShelves, config *book.Config, action string)
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Pick your collection.").
-				Options(
-					huh.NewOptions(bs.Shelf(chosenShelf).CollectionsNames()...)...,
-				).
+				OptionsFunc(func() []huh.Option[string] {
+					shelf, _ := bs.Shelf(chosenShelf)
+					if shelf == nil {
+						return []huh.Option[string]{}
+					}
+					return huh.NewOptions(shelf.CollectionsNames()...)
+				}, &chosenShelf).
 				Key("collection").
 				Value(&chosenCollection),
 		).WithHideFunc(func() bool {

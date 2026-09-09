@@ -15,7 +15,7 @@ func getMark(bs *book.BookShelves, id, url, format string, config *book.Config) 
 		if !config.Interactive {
 			return fmt.Errorf("missing required flag: --id or --url")
 		}
-		return runProgram(markRootScreen(bs, &book.Mark{}, "get", config))
+		return runProgram(markRootScreen(bs, nil, "get", config))
 	}
 
 	var target *book.Mark
@@ -83,7 +83,7 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 		}
 		return book.PrintCatalog(collection, format)
 	}
-	return runProgram(markRootScreen(bs, &book.Mark{}, "list", config))
+	return runProgram(markRootScreen(bs, nil, "list", config))
 }
 
 func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Config) error {
@@ -91,7 +91,7 @@ func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Co
 		if !config.Interactive {
 			return err
 		}
-		return runProgram(markRootScreen(bs, &book.Mark{}, "edit", config))
+		return runProgram(markRootScreen(bs, nil, "edit", config))
 	}
 
 	target := bs.FindMarkByID(id)
@@ -179,12 +179,12 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && collectionName != "" {
-		shelf := bs.Shelf(shelfName)
-		if shelf == nil || book.StructIsEmpty(shelf) {
+		shelf, ok := bs.Shelf(shelfName)
+		if !ok {
 			return fmt.Errorf("shelf %q not found", shelfName)
 		}
 		collection := shelf.Collection(collectionName)
-		if collection == nil || book.StructIsEmpty(collection) {
+		if collection == nil {
 			return fmt.Errorf("collection %q not found in shelf %q", collectionName, shelfName)
 		}
 		mark.Shelf = shelf
@@ -205,7 +205,7 @@ func removeMark(bs *book.BookShelves, id string, confirmed bool, config *book.Co
 		if !config.Interactive {
 			return err
 		}
-		return runProgram(markRootScreen(bs, &book.Mark{}, "delete", config))
+		return runProgram(markRootScreen(bs, nil, "delete", config))
 	}
 
 	if !confirmed {
@@ -236,12 +236,12 @@ func restoreMark(bs *book.BookShelves, id string, shelfName string, collectionNa
 		return fmt.Errorf("restore requires --id, or --shelf/--collection/--url")
 	}
 
-	shelf := bs.Shelf(shelfName)
-	if book.StructIsEmpty(shelf) {
+	shelf, ok := bs.Shelf(shelfName)
+	if !ok {
 		return fmt.Errorf("shelf %q not found", shelfName)
 	}
 	collection := shelf.Collection(collectionName)
-	if book.StructIsEmpty(collection) {
+	if collection == nil {
 		return fmt.Errorf("collection %q not found in shelf %q", collectionName, shelfName)
 	}
 
@@ -266,10 +266,6 @@ func clearSoftDelete(target *book.Mark) error {
 }
 
 func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *book.Config) model.RootScreen {
-	if book.StructIsEmpty(mark) {
-		screen := model.GetMarkForm(bs, &book.Mark{}, config, action)
-		return model.RootScreen{Model: &screen}
-	}
 	screen := model.GetMarkForm(bs, mark, config, action)
 	return model.RootScreen{Model: &screen}
 }

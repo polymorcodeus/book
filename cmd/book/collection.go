@@ -39,8 +39,8 @@ func addCollection(bs *book.BookShelves, shelfName, collectionName, description 
 		return runProgram(collectionRootScreen(bs, "add", config))
 	}
 
-	shelf := bs.Shelf(shelfName)
-	if shelf == nil || book.StructIsEmpty(shelf) {
+	shelf, ok := bs.Shelf(shelfName)
+	if !ok {
 		return fmt.Errorf("shelf %q not found", shelfName)
 	}
 
@@ -65,8 +65,8 @@ func removeCollection(bs *book.BookShelves, shelfName, collectionName string, co
 		return fmt.Errorf("remove collection requires --confirm")
 	}
 
-	shelf := bs.Shelf(shelfName)
-	if shelf == nil || book.StructIsEmpty(shelf) {
+	shelf, ok := bs.Shelf(shelfName)
+	if !ok {
 		return fmt.Errorf("shelf %q not found", shelfName)
 	}
 
