@@ -8,10 +8,10 @@ import (
 	"github.com/polymorcodeus/book/internal/model"
 )
 
-func collections(bs *book.BookShelves, shelfName string, format string, config *book.Config) error {
+func collections(cache *indexCache, bs *book.BookShelves, shelfName string, format string, config *book.Config) error {
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && !config.Interactive {
-		idx, err := syncIndex(config)
+		idx, err := cache.sync(config)
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,7 +168,7 @@ func TestAddMark(t *testing.T) {
 	config := testConfig(t)
 	bs := seedShelf(t, config, "dev", "docs")
 
-	if err := addMark(bs, "https://example.com", "go,cli", "dev", "docs", "Example", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://example.com", "go,cli", "dev", "docs", "Example", config); err != nil {
 		t.Fatalf("addMark error: %v", err)
 	}
 
@@ -185,7 +186,7 @@ func TestAddMark(t *testing.T) {
 	}
 
 	// Duplicate URL should fail.
-	if err := addMark(bs, "https://example.com", "", "dev", "docs", "", config); err == nil {
+	if err := addMark(context.Background(), bs, "https://example.com", "", "dev", "docs", "", config); err == nil {
 		t.Error("expected error for duplicate URL")
 	}
 }
@@ -193,7 +194,7 @@ func TestAddMark(t *testing.T) {
 func TestGetMark(t *testing.T) {
 	config := testConfig(t)
 	bs := seedShelf(t, config, "dev", "docs")
-	if err := addMark(bs, "https://example.com", "go", "dev", "docs", "Example", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://example.com", "go", "dev", "docs", "Example", config); err != nil {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)
@@ -223,7 +224,7 @@ func TestGetMark(t *testing.T) {
 func TestEditMark(t *testing.T) {
 	config := testConfig(t)
 	bs := seedShelf(t, config, "dev", "docs")
-	if err := addMark(bs, "https://example.com", "go", "dev", "docs", "Example", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://example.com", "go", "dev", "docs", "Example", config); err != nil {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)
@@ -246,10 +247,10 @@ func TestEditMark(t *testing.T) {
 func TestEditMarkURLCollision(t *testing.T) {
 	config := testConfig(t)
 	bs := seedShelf(t, config, "dev", "docs")
-	if err := addMark(bs, "https://one.example.com", "", "dev", "docs", "One", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://one.example.com", "", "dev", "docs", "One", config); err != nil {
 		t.Fatalf("addMark one error: %v", err)
 	}
-	if err := addMark(bs, "https://two.example.com", "", "dev", "docs", "Two", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://two.example.com", "", "dev", "docs", "Two", config); err != nil {
 		t.Fatalf("addMark two error: %v", err)
 	}
 	bs = loadShelves(t, config)
@@ -274,7 +275,7 @@ func TestEditMarkURLCollision(t *testing.T) {
 func TestRemoveMark(t *testing.T) {
 	config := testConfig(t)
 	bs := seedShelf(t, config, "dev", "docs")
-	if err := addMark(bs, "https://example.com", "", "dev", "docs", "Example", config); err != nil {
+	if err := addMark(context.Background(), bs, "https://example.com", "", "dev", "docs", "Example", config); err != nil {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)

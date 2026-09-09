@@ -10,7 +10,7 @@ import (
 
 // gc purges soft-deleted marks older than retentionDays from the shelf TOML
 // files and reconciles the derived index.
-func gc(config *book.Config, retentionDays int) error {
+func gc(cache *indexCache, config *book.Config, retentionDays int) error {
 	if !config.Autoconfirm {
 		return fmt.Errorf("set --confirm to run gc")
 	}
@@ -41,7 +41,7 @@ func gc(config *book.Config, retentionDays int) error {
 
 	if changed > 0 {
 		// Reconcile the derived index so purged marks disappear from search.
-		if _, err := syncIndex(config); err != nil {
+		if _, err := cache.sync(config); err != nil {
 			return err
 		}
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -38,10 +39,10 @@ func getMark(bs *book.BookShelves, id, url, format string, config *book.Config) 
 	return book.PrintCatalog(target, format)
 }
 
-func marks(bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
+func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
 	// Trash listing reads the derived index and is always non-interactive.
 	if trash {
-		idx, err := syncIndex(config)
+		idx, err := cache.sync(config)
 		if err != nil {
 			return err
 		}
@@ -64,7 +65,7 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && collectionName != "" && !config.Interactive {
-		idx, err := syncIndex(config)
+		idx, err := cache.sync(config)
 		if err != nil {
 			return err
 		}
@@ -119,13 +120,13 @@ func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Co
 	return catalog.UpdateShelfFile(target.Shelf)
 }
 
-func searchMarks(query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
+func searchMarks(cache *indexCache, query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
 	clauses, err := book.ParseTagFilter(tags)
 	if err != nil {
 		return err
 	}
 
-	idx, err := syncIndex(config)
+	idx, err := cache.sync(config)
 	if err != nil {
 		return err
 	}
@@ -148,7 +149,7 @@ func searchMarks(query string, tags string, shelfName string, collectionName str
 	}
 }
 
-func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *book.Config) error {
+func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *book.Config) error {
 	mark, err := book.NewMarkFromInput(URL, book.SplitTags(tags))
 	if err != nil {
 		return err
@@ -162,7 +163,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 	// Use provided title or fetch from URL
 	fetched := book.TitleFetchResult{}
 	if title == "" {
-		fetchedTitle, err := web.LoadWebsite(mark.URL)
+		fetchedTitle, err := web.LoadWebsite(ctx, mark.URL)
 		if err != nil {
 			if !errors.Is(err, web.ErrTitleUnavailable) {
 				return fmt.Errorf("load website: %w", err)

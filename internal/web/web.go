@@ -33,9 +33,16 @@ func OpenURL(url string) error {
 	}
 }
 
-// WebsiteTitle fetches and extracts the page title from a URL.
-func WebsiteTitle(url string) (string, error) {
-	res, err := http.Get(url)
+// WebsiteTitle fetches and extracts the page title from a URL. The request is
+// bound to ctx and capped at 10 seconds.
+func WebsiteTitle(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	res, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -61,9 +68,10 @@ func WebsiteTitle(url string) (string, error) {
 	}
 }
 
-// LoadWebsite fetches a page title with a spinner and 10-second timeout.
-func LoadWebsite(url string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// LoadWebsite fetches a page title with a spinner and 10-second timeout. The
+// provided context is honoured and capped at 10 seconds.
+func LoadWebsite(ctx context.Context, url string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var title string
@@ -72,7 +80,7 @@ func LoadWebsite(url string) (string, error) {
 	return title, spinner.New().
 		Context(ctx).
 		ActionWithErr(func(context.Context) error {
-			title, err = WebsiteTitle(url)
+			title, err = WebsiteTitle(ctx, url)
 			return err
 		}).
 		Title("Loading mark title ...").

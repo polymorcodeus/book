@@ -10,7 +10,7 @@ import (
 // doctor inspects the catalog for post-merge problems: duplicate marks, schema
 // drift, index staleness, and stray debris. With fix it auto-resolves merge
 // duplicates and rewrites the affected shelf files.
-func doctor(config *book.Config, fix bool) error {
+func doctor(cache *indexCache, config *book.Config, fix bool) error {
 	var shelves book.BookShelves
 	if err := catalog.LoadShelves(&shelves, config); err != nil {
 		return err
@@ -33,7 +33,7 @@ func doctor(config *book.Config, fix bool) error {
 	if err != nil {
 		return err
 	}
-	stale, err := indexStaleFiles(config)
+	stale, err := indexStaleFiles(cache, config)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func doctor(config *book.Config, fix bool) error {
 		// Only reconcile the index when no duplicate IDs remain: the index's
 		// primary key on catalog_id cannot represent unresolved conflicts.
 		if len(changed) > 0 && len(shelves.DetectDuplicates()) == 0 {
-			if _, err := syncIndex(config); err != nil {
+			if _, err := cache.sync(config); err != nil {
 				return err
 			}
 		}
@@ -73,7 +73,7 @@ func doctor(config *book.Config, fix bool) error {
 
 // indexStaleFiles returns shelf paths whose index entries are out of date, or
 // nil when the index has not been built yet.
-func indexStaleFiles(config *book.Config) ([]string, error) {
+func indexStaleFiles(cache *indexCache, config *book.Config) ([]string, error) {
 	exists, err := catalog.VerifyExists(catalog.IndexPath(config))
 	if err != nil {
 		return nil, err
@@ -82,11 +82,10 @@ func indexStaleFiles(config *book.Config) ([]string, error) {
 		return nil, nil
 	}
 
-	idx, err := catalog.OpenIndex(config)
+	idx, err := cache.get(config)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = idx.Close() }()
 	return idx.StaleFiles(config)
 }
 
