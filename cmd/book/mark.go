@@ -51,10 +51,7 @@ func marks(bs *book.BookShelves, shelfName string, collectionName string, format
 		}
 		switch format {
 		case "toml":
-			wrapped := struct {
-				Marks []catalog.SearchResult `toml:"marks"`
-			}{deleted}
-			return book.PrintCatalog(wrapped, format)
+			return book.PrintCatalog(catalog.SearchResultList{Marks: deleted}, format)
 		case "json":
 			return book.PrintCatalog(deleted, format)
 		default:
@@ -111,7 +108,7 @@ func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Co
 			return err
 		}
 		if err := bs.VerifyUniqueURL(book.GenerateID(url), target); err != nil {
-			return err
+			return fmt.Errorf("verify unique url: %w", err)
 		}
 	}
 
@@ -142,11 +139,7 @@ func searchMarks(query string, tags string, shelfName string, collectionName str
 	case "json":
 		return book.PrintCatalog(results, format)
 	case "toml":
-		// TOML requires a top-level map or struct, so wrap the slice.
-		wrapped := struct {
-			Marks []catalog.SearchResult `toml:"marks"`
-		}{results}
-		return book.PrintCatalog(wrapped, format)
+		return book.PrintCatalog(catalog.SearchResultList{Marks: results}, format)
 	default:
 		for _, r := range results {
 			fmt.Printf("%s %s\n", r.Title, r.URL)
@@ -163,7 +156,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 
 	// Ensure URL hash not in bookshelves
 	if err := bs.VerifyUniqueURL(mark.ID, nil); err != nil {
-		return err
+		return fmt.Errorf("verify unique url: %w", err)
 	}
 
 	// Use provided title or fetch from URL
@@ -172,7 +165,7 @@ func addMark(bs *book.BookShelves, URL string, tags string, shelfName string, co
 		fetchedTitle, err := web.LoadWebsite(mark.URL)
 		if err != nil {
 			if !errors.Is(err, web.ErrTitleUnavailable) {
-				return err
+				return fmt.Errorf("load website: %w", err)
 			}
 			fetched.Unavailable = true
 		} else {

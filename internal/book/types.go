@@ -177,10 +177,10 @@ func (bs *BookShelves) VerifyUniqueURL(id string, exclude *Mark) error {
 					continue
 				}
 				if m.IsDeleted() {
-					return fmt.Errorf("URL already trashed!\n\n%s\n\nrestore it with:\nbook mark restore --shelf %s --collection %s --url %s",
+					return fmt.Errorf("url already trashed\n\n%s\n\nrestore it with:\nbook mark restore --shelf %s --collection %s --url %s",
 						m.FullDetail(), m.Shelf.Name, m.Collection.Name, m.URL)
 				}
-				return fmt.Errorf("duplicate URL Found!\n\n%s", m.FullDetail())
+				return fmt.Errorf("duplicate url found\n\n%s", m.FullDetail())
 			}
 		}
 	}
@@ -582,10 +582,10 @@ func ResolveMarkTitle(providedTitle, url string, fetched TitleFetchResult, inter
 // ValidateNewShelfName returns an error if name is empty or already in use.
 func (bs *BookShelves) ValidateNewShelfName(name string) error {
 	if name == "" {
-		return fmt.Errorf("HARD requirement")
+		return fmt.Errorf("shelf name is required")
 	}
 	if slices.Contains(bs.ShelfNames(), name) {
-		return fmt.Errorf("womp womp, shelf already exists")
+		return fmt.Errorf("shelf already exists")
 	}
 	return nil
 }

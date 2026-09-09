@@ -96,33 +96,3 @@ var DefaultViewTemplates = map[string]ViewTemplate{
 	"mark-get":    markTemplate("To open mark:"),
 	"mark-delete": markTemplate("To delete mark:"),
 }
-
-// UserViewTemplates holds user-defined template overrides loaded at runtime.
-var UserViewTemplates = map[string]ViewTemplate{}
-
-// GetTemplate merges user overrides over the default for a given key.
-func GetTemplate(key string) ViewTemplate {
-	def, hasDef := DefaultViewTemplates[key]
-	user, hasUser := UserViewTemplates[key]
-
-	switch {
-	case !hasDef && !hasUser:
-		return ViewTemplate{}
-	case !hasUser:
-		return def
-	case !hasDef:
-		return user
-	}
-
-	// Overlay: user field non-empty → override default.
-	if user.PrimaryTitle != "" {
-		def.PrimaryTitle = user.PrimaryTitle
-	}
-	if user.SecondaryTitle != "" {
-		def.SecondaryTitle = user.SecondaryTitle
-	}
-	if user.ListTitle != "" {
-		def.ListTitle = user.ListTitle
-	}
-	return def
-}

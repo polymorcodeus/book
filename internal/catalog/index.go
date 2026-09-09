@@ -417,6 +417,12 @@ type SearchResult struct {
 	Tags       []string `json:"tags" toml:"tags"`
 }
 
+// SearchResultList wraps a slice of search results so it can be serialized as
+// TOML, which requires a top-level map or struct.
+type SearchResultList struct {
+	Marks []SearchResult `toml:"marks" json:"marks"`
+}
+
 // Search runs an FTS5 query over mark titles and URLs, excluding soft-deleted
 // marks. The query string uses FTS5 match syntax and may be empty to search by
 // filters alone. tagClauses filters results to marks matching every clause

@@ -388,7 +388,7 @@ func Main() {
 						Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 							if c.Args().First() != "" && markURL != "" {
 								return ctx, cli.Exit(config.StyledError(
-									fmt.Errorf("cannot pass URL as both --url and a positional argument")), 1)
+									fmt.Errorf("cannot pass url as both --url and a positional argument")), 1)
 							}
 
 							// use positional argument to populate markURL if flag not used
@@ -397,7 +397,7 @@ func Main() {
 							}
 							if markURL == "" {
 								return ctx, cli.Exit(config.StyledError(
-									fmt.Errorf("must pass URL as --url or argument")), 1)
+									fmt.Errorf("must pass url as --url or argument")), 1)
 							}
 							return ctx, nil
 						},
