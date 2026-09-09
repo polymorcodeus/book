@@ -45,14 +45,29 @@ func (m *markModel) reloadMarkModel() {
 	collection := m.book.form.GetString("collection")
 	mark := m.book.form.GetString("mark")
 
-	m.shelf = m.book.shelves.Shelf(shelf)
-	m.collection = m.book.shelves.Shelf(shelf).Collection(collection)
-	m.mark = m.book.shelves.Shelf(shelf).Collection(collection).Mark(mark)
+	s, _ := m.book.shelves.Shelf(shelf)
+	m.shelf = s
+	if s == nil {
+		m.collection = nil
+		m.mark = nil
+		return
+	}
+	m.collection = s.Collection(collection)
+	if m.collection == nil {
+		m.mark = nil
+		return
+	}
+	m.mark = m.collection.Mark(mark)
 }
 
 func (m *markModel) loadMarkParents() {
-	m.mark.Shelf = m.book.shelves.Shelf(m.book.form.GetString("shelf"))
-	m.mark.Collection = m.mark.Shelf.Collection(m.book.form.GetString("collection"))
+	shelf, _ := m.book.shelves.Shelf(m.book.form.GetString("shelf"))
+	m.mark.Shelf = shelf
+	if shelf == nil {
+		m.mark.Collection = nil
+		return
+	}
+	m.mark.Collection = shelf.Collection(m.book.form.GetString("collection"))
 }
 
 func (m *markModel) updateShelfFileCmd(action string) tea.Cmd {
@@ -119,7 +134,8 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update model after form has been updated
 	if m.get.book.form.State != huh.StateCompleted {
 		if m.get.book.form.GetString("shelf") != "" {
-			m.get.shelf = m.get.book.shelves.Shelf(m.get.book.form.GetString("shelf"))
+			shelf, _ := m.get.book.shelves.Shelf(m.get.book.form.GetString("shelf"))
+			m.get.shelf = shelf
 		}
 
 		if m.get.verifyCollection() {
@@ -128,7 +144,7 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.get.verifyMark() {
 				// Load valid mark into model for Get|Edit|Delete
-				if book.StructIsEmpty(m.get.mark) {
+				if m.get.mark == nil {
 					m.get.reloadMarkModel()
 				}
 			}
@@ -238,7 +254,7 @@ func (m getMarkModel) ResultView() string {
 	case "list":
 		return renderCompletedView(s, t, "mark-list", m.get.collection).Content
 	case "delete":
-		return renderCompletedView(s, t, "mark-delete", m.get.collection).Content
+		return renderCompletedView(s, t, "mark-delete", m.get.mark).Content
 	}
 	return ""
 }
@@ -274,7 +290,11 @@ func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, act
 				OptionsFunc(func() []huh.Option[string] {
 					// Prevent empty collections from being loaded
 					var opts []string
-					for _, col := range bs.Shelf(chosenShelf).Collections {
+					shelf, _ := bs.Shelf(chosenShelf)
+					if shelf == nil {
+						return []huh.Option[string]{}
+					}
+					for _, col := range shelf.Collections {
 						if (col.HasActiveMarks() && action != "add") || action == "add" {
 							opts = append(opts, col.Name)
 						}
@@ -290,14 +310,22 @@ func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, act
 			huh.NewSelect[string]().
 				Title("Pick your mark.").
 				OptionsFunc(func() []huh.Option[string] {
-					opts := bs.Shelf(chosenShelf).Collection(chosenCollection).MarksNames()
+					shelf, _ := bs.Shelf(chosenShelf)
+					if shelf == nil {
+						return []huh.Option[string]{}
+					}
+					collection := shelf.Collection(chosenCollection)
+					if collection == nil {
+						return []huh.Option[string]{}
+					}
+					opts := collection.MarksNames()
 					return huh.NewOptions(opts...)
 				}, &chosenCollection).
 				Key("mark").
 				Value(&chosenMark).
 				Height(19),
 		).WithHideFunc(func() bool {
-			return !book.StructIsEmpty(mark) || action == "list"
+			return action == "add" || action == "list"
 		}),
 
 		huh.NewGroup(
@@ -344,7 +372,7 @@ func (m editMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+z":
 			switch m.action {
 			case "edit":
-				getScreen := GetMarkForm(m.editor.book.shelves, &book.Mark{}, m.editor.config, m.action)
+				getScreen := GetMarkForm(m.editor.book.shelves, nil, m.editor.config, m.action)
 				return getScreen, getScreen.Init()
 			case "add":
 				getScreen := GetMarkForm(m.editor.book.shelves, m.editor.mark, m.editor.config, m.action)
@@ -473,7 +501,14 @@ func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, ac
 				Title("Review tags.").
 				Description("additional and collection tags shown").
 				OptionsFunc(func() []huh.Option[string] {
-					collectTags := bs.Shelf(m.mark.Shelf.Name).Collection(m.mark.Collection.Name).AllTags()
+					collectTags := []string{}
+					shelf, _ := bs.Shelf(m.mark.Shelf.Name)
+					if shelf != nil {
+						collection := shelf.Collection(m.mark.Collection.Name)
+						if collection != nil {
+							collectTags = collection.AllTags()
+						}
+					}
 					userTags := book.SplitTagLines(tempTags)
 					return huh.NewOptions(book.MergeTags(m.mark.Tags, userTags, collectTags)...)
 				}, &tempTags).

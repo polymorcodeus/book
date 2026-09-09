@@ -29,6 +29,15 @@ func loadShelves(t *testing.T, config *book.Config) *book.BookShelves {
 	return &bs
 }
 
+func testShelf(t *testing.T, bs *book.BookShelves, name string) *book.Shelf {
+	t.Helper()
+	shelf, ok := bs.Shelf(name)
+	if !ok {
+		t.Fatalf("shelf %q not found", name)
+	}
+	return shelf
+}
+
 func seedShelf(t *testing.T, config *book.Config, name, collection string) *book.BookShelves {
 	t.Helper()
 	bs := &book.BookShelves{}
@@ -36,7 +45,7 @@ func seedShelf(t *testing.T, config *book.Config, name, collection string) *book
 		t.Fatalf("seed shelf: %v", err)
 	}
 	if collection != "" {
-		shelf := bs.Shelf(name)
+		shelf := testShelf(t, bs, name)
 		col, err := book.NewCollection(shelf, collection, "")
 		if err != nil {
 			t.Fatalf("seed collection: %v", err)
@@ -60,7 +69,7 @@ func TestAddShelf(t *testing.T) {
 	if len(*bs) != 1 {
 		t.Fatalf("got %d shelves, want 1", len(*bs))
 	}
-	shelf := bs.Shelf("dev")
+	shelf := testShelf(t, bs, "dev")
 	if shelf.Name != "dev" {
 		t.Errorf("Name = %q, want dev", shelf.Name)
 	}
@@ -87,7 +96,7 @@ func TestRemoveShelf(t *testing.T) {
 	if err := removeShelf(bs, "dev", false); err == nil {
 		t.Fatal("expected error without --confirm")
 	}
-	if _, err := os.Stat(bs.Shelf("dev").FilePath); err != nil {
+	if _, err := os.Stat(testShelf(t, bs, "dev").FilePath); err != nil {
 		t.Fatal("shelf file removed before confirm")
 	}
 
@@ -115,13 +124,13 @@ func TestAddCollection(t *testing.T) {
 		t.Fatalf("addCollection error: %v", err)
 	}
 
-	shelf := bs.Shelf("dev")
+	shelf := testShelf(t, bs, "dev")
 	if shelf.Collection("docs") == nil {
 		t.Fatal("collection not found in memory")
 	}
 
 	reloaded := loadShelves(t, config)
-	if reloaded.Shelf("dev").Collection("docs") == nil {
+	if testShelf(t, reloaded, "dev").Collection("docs") == nil {
 		t.Fatal("collection not persisted")
 	}
 
@@ -139,12 +148,12 @@ func TestRemoveCollection(t *testing.T) {
 		t.Fatalf("removeCollection error: %v", err)
 	}
 
-	if bs.Shelf("dev").Collection("docs") != nil {
+	if testShelf(t, bs, "dev").Collection("docs") != nil {
 		t.Error("collection still in memory")
 	}
 
 	reloaded := loadShelves(t, config)
-	if reloaded.Shelf("dev").Collection("docs") != nil {
+	if testShelf(t, reloaded, "dev").Collection("docs") != nil {
 		t.Error("collection not removed from disk")
 	}
 
@@ -163,7 +172,7 @@ func TestAddMark(t *testing.T) {
 	}
 
 	reloaded := loadShelves(t, config)
-	collection := reloaded.Shelf("dev").Collection("docs")
+	collection := testShelf(t, reloaded, "dev").Collection("docs")
 	if len(collection.Marks) != 1 {
 		t.Fatalf("got %d marks, want 1", len(collection.Marks))
 	}
@@ -188,7 +197,7 @@ func TestGetMark(t *testing.T) {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)
-	mark := bs.Shelf("dev").Collection("docs").Marks[0]
+	mark := testShelf(t, bs, "dev").Collection("docs").Marks[0]
 
 	// By ID.
 	if err := getMark(bs, mark.ID, "", "", config); err != nil {
@@ -218,14 +227,14 @@ func TestEditMark(t *testing.T) {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)
-	mark := bs.Shelf("dev").Collection("docs").Marks[0]
+	mark := testShelf(t, bs, "dev").Collection("docs").Marks[0]
 
 	if err := editMark(bs, mark.ID, "Updated", "go,cli", "", config); err != nil {
 		t.Fatalf("editMark error: %v", err)
 	}
 
 	reloaded := loadShelves(t, config)
-	updated := reloaded.Shelf("dev").Collection("docs").Marks[0]
+	updated := testShelf(t, reloaded, "dev").Collection("docs").Marks[0]
 	if updated.Name != "Updated" {
 		t.Errorf("Name = %q, want Updated", updated.Name)
 	}
@@ -244,7 +253,7 @@ func TestEditMarkURLCollision(t *testing.T) {
 		t.Fatalf("addMark two error: %v", err)
 	}
 	bs = loadShelves(t, config)
-	marks := bs.Shelf("dev").Collection("docs").Marks
+	marks := testShelf(t, bs, "dev").Collection("docs").Marks
 	oneID := marks[0].ID
 
 	// Changing mark one to mark two's URL should fail before mutating.
@@ -269,7 +278,7 @@ func TestRemoveMark(t *testing.T) {
 		t.Fatalf("addMark error: %v", err)
 	}
 	bs = loadShelves(t, config)
-	mark := bs.Shelf("dev").Collection("docs").Marks[0]
+	mark := testShelf(t, bs, "dev").Collection("docs").Marks[0]
 
 	if err := removeMark(bs, mark.ID, true, config); err != nil {
 		t.Fatalf("removeMark error: %v", err)

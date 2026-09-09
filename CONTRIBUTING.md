@@ -1,12 +1,12 @@
-# Contributing to polybook
+# Contributing to book
 
-Thanks for considering a contribution! polybook is a terminal-native bookmark manager — keeping the CLI fast, the TUI pleasant, and the TOML storage predictable is the top priority.
+Thanks for considering a contribution! book is a terminal-native bookmark manager — keeping the CLI fast, the TUI pleasant, and the TOML storage predictable is the top priority.
 
 ## Quick Start
 
 ```bash
 git clone <your-fork>
-cd polybook
+cd book
 go build ./...
 go test ./...
 go vet ./...
@@ -112,7 +112,7 @@ Note: there is no `.golangci.yml` in the repo yet. If you want to add one, open 
 
 There are currently **zero tests**. New features or bug fixes **should** include tests where feasible. Priority targets for coverage:
 
-- `VerifyUniqueURL`, `DedupUnique`, `MergeTags`, `StructIsEmpty`, `GenerateID` in `internal/book`
+- `VerifyUniqueURL`, `DedupUnique`, `MergeTags`, `GenerateID` in `internal/book`
 - TOML round-trip encoding/decoding in `internal/catalog`
 - `WebsiteTitle` / `OpenURL` in `internal/web` (mock HTTP server)
 

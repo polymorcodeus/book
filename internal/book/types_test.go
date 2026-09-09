@@ -46,35 +46,17 @@ func TestDedupUnique(t *testing.T) {
 	}
 }
 
-func TestStructIsEmpty(t *testing.T) {
-	tests := []struct {
-		name string
-		ptr  *Mark
-		want bool
-	}{
-		{
-			name: "nil pointer",
-			ptr:  nil,
-			want: true,
-		},
-		{
-			name: "zero struct",
-			ptr:  &Mark{},
-			want: true,
-		},
-		{
-			name: "non-zero struct",
-			ptr:  &Mark{Name: "example"},
-			want: false,
-		},
+func TestBookShelvesShelf(t *testing.T) {
+	bs := BookShelves{
+		{Name: "shelf-a"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := StructIsEmpty(tt.ptr); got != tt.want {
-				t.Errorf("StructIsEmpty() = %v, want %v", got, tt.want)
-			}
-		})
+	if shelf, ok := bs.Shelf("shelf-a"); !ok || shelf == nil || shelf.Name != "shelf-a" {
+		t.Errorf("expected shelf-a, got %v, ok=%v", shelf, ok)
+	}
+
+	if shelf, ok := bs.Shelf("missing"); ok || shelf != nil {
+		t.Errorf("expected missing shelf to return nil/false, got %v, ok=%v", shelf, ok)
 	}
 }
 
