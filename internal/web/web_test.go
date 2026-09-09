@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -72,7 +73,7 @@ func TestWebsiteTitle(t *testing.T) {
 			}))
 			defer server.Close()
 
-			gotTitle, gotErr := WebsiteTitle(server.URL)
+			gotTitle, gotErr := WebsiteTitle(context.Background(), server.URL)
 			if gotTitle != tt.wantTitle {
 				t.Errorf("title mismatch: got %q, want %q", gotTitle, tt.wantTitle)
 			}

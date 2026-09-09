@@ -9,9 +9,9 @@ import (
 	"github.com/polymorcodeus/book/internal/model"
 )
 
-func shelves(bs *book.BookShelves, format string, config *book.Config) error {
+func shelves(cache *indexCache, bs *book.BookShelves, format string, config *book.Config) error {
 	if !config.Interactive {
-		idx, err := syncIndex(config)
+		idx, err := cache.sync(config)
 		if err != nil {
 			return err
 		}

@@ -46,11 +46,8 @@ func buildVersion() string {
 
 // Main builds and runs the book CLI application.
 func Main() {
-	defer func() {
-		if index != nil {
-			_ = index.Close()
-		}
-	}()
+	cache := &indexCache{}
+	defer func() { _ = cache.close() }()
 
 	var confirm bool
 	var interactive bool
@@ -261,7 +258,7 @@ func Main() {
 						Usage:   "list shelves",
 						Aliases: []string{"ls"},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := shelves(&bookShelves, format, config); err != nil {
+							if err := shelves(cache, &bookShelves, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -325,7 +322,7 @@ func Main() {
 						Usage:   "list collections in shelve",
 						Aliases: []string{"ls"},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := collections(&bookShelves, shelf, format, config); err != nil {
+							if err := collections(cache, &bookShelves, shelf, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -402,7 +399,7 @@ func Main() {
 							return ctx, nil
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := addMark(&bookShelves, markURL, markTags, shelf, collection, markTitle, config); err != nil {
+							if err := addMark(ctx, &bookShelves, markURL, markTags, shelf, collection, markTitle, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -484,7 +481,7 @@ func Main() {
 							},
 						},
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := marks(&bookShelves, shelf, collection, format, trash, config); err != nil {
+							if err := marks(cache, &bookShelves, shelf, collection, format, trash, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -517,7 +514,7 @@ func Main() {
 							return ctx, nil
 						},
 						Action: func(ctx context.Context, c *cli.Command) error {
-							if err := searchMarks(c.Args().First(), searchTags, shelf, collection, format, config); err != nil {
+							if err := searchMarks(cache, c.Args().First(), searchTags, shelf, collection, format, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -597,7 +594,7 @@ func Main() {
 					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if err := gc(config, retentionDays); err != nil {
+					if err := gc(cache, config, retentionDays); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
@@ -615,7 +612,7 @@ func Main() {
 					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if err := doctor(config, fix); err != nil {
+					if err := doctor(cache, config, fix); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
@@ -629,7 +626,7 @@ func Main() {
 						Name:  "rebuild",
 						Usage: "wipe and rebuild the index from shelf TOML files",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := runIndexRebuild(config); err != nil {
+							if err := runIndexRebuild(cache, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -639,7 +636,7 @@ func Main() {
 						Name:  "sync",
 						Usage: "reconcile the index with changes to shelf TOML files",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := runIndexSync(config); err != nil {
+							if err := runIndexSync(cache, config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil

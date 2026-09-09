@@ -7,34 +7,57 @@ import (
 	"github.com/polymorcodeus/book/internal/catalog"
 )
 
-// index holds the lazily-opened SQLite index shared by the read paths within a
-// single command invocation.
-var index *catalog.Index
+// indexCache holds the lazily-opened SQLite index shared by the read paths
+// within a single command invocation. It is created in Main and closed by
+// Main's deferred cleanup.
+type indexCache struct {
+	index *catalog.Index
+}
 
-// syncIndex lazily opens the derived index and reconciles it with the shelf
-// files on disk, returning the ready-to-query index.
-func syncIndex(config *book.Config) (*catalog.Index, error) {
-	if index == nil {
+// get lazily opens the derived index.
+func (c *indexCache) get(config *book.Config) (*catalog.Index, error) {
+	if c.index == nil {
 		idx, err := catalog.OpenIndex(config)
 		if err != nil {
 			return nil, err
 		}
-		index = idx
+		c.index = idx
 	}
-	if _, err := index.Sync(config); err != nil {
-		return nil, err
-	}
-	return index, nil
+	return c.index, nil
 }
 
-func runIndexRebuild(config *book.Config) error {
-	idx, err := catalog.OpenIndex(config)
+// sync lazily opens the derived index and reconciles it with the shelf files
+// on disk, returning the ready-to-query index.
+func (c *indexCache) sync(config *book.Config) (*catalog.Index, error) {
+	idx, err := c.get(config)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer func() { _ = idx.Close() }()
+	if _, err := idx.Sync(config); err != nil {
+		return nil, err
+	}
+	return idx, nil
+}
 
-	report, err := idx.Rebuild(config)
+// rebuild wipes and rebuilds the index from shelf TOML files.
+func (c *indexCache) rebuild(config *book.Config) (*catalog.RebuildReport, error) {
+	idx, err := c.get(config)
+	if err != nil {
+		return nil, err
+	}
+	return idx.Rebuild(config)
+}
+
+// close releases the cached index, if any.
+func (c *indexCache) close() error {
+	if c.index != nil {
+		return c.index.Close()
+	}
+	return nil
+}
+
+func runIndexRebuild(cache *indexCache, config *book.Config) error {
+	report, err := cache.rebuild(config)
 	if err != nil {
 		return err
 	}
@@ -42,12 +65,11 @@ func runIndexRebuild(config *book.Config) error {
 	return nil
 }
 
-func runIndexSync(config *book.Config) error {
-	idx, err := catalog.OpenIndex(config)
+func runIndexSync(cache *indexCache, config *book.Config) error {
+	idx, err := cache.get(config)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = idx.Close() }()
 
 	report, err := idx.Sync(config)
 	if err != nil {
