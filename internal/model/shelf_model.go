@@ -32,17 +32,12 @@ func (m getShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.get.book.width = min(msg.Width, maxWidth) - m.get.book.styles.Base.GetHorizontalFrameSize()
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "ctrl+p":
-			return m, m.get.book.form.PrevGroup()
-		case "ctrl+c":
-			return m, tea.Interrupt
-		case "esc":
-			return m, tea.Quit
+		if cmd, handled := handleCommonKeys(m.get.book.form, msg); handled {
+			return m, cmd
 		}
 	case errMsg:
 		m.get.book.err = msg
-		return m, nil
+		return m, tea.Quit
 	}
 
 	var cmds []tea.Cmd
@@ -52,11 +47,6 @@ func (m getShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if f, ok := form.(*huh.Form); ok {
 		m.get.book.form = f
 		cmds = append(cmds, cmd)
-	}
-
-	// Initialize display
-	if m.get.shelf == nil {
-		m.get.shelf = &book.Shelf{}
 	}
 
 	if m.get.book.form.State == huh.StateCompleted {
@@ -87,13 +77,8 @@ func (m getShelfModel) View() tea.View {
 	// Status (right side)
 	var status string
 	{
-		var (
-			currentShelf string
-		)
-
-		if m.get.shelf != nil {
-			currentShelf = s.StatusHeader.Render("Picked Shelf") + "\n" + "fake" + "\n\n"
-		}
+		displayShelf := m.get.book.form.GetString("shelf")
+		currentShelf := lipglossDimmer(s.StatusHeader, "Picked Shelf", displayShelf)
 
 		status = m.get.book.statusPanel(form, currentShelf, 14)
 	}
@@ -115,10 +100,16 @@ func (m getShelfModel) View() tea.View {
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m getShelfModel) ResultView() string {
-	if m.get.book.form.State != huh.StateCompleted || m.action != "list" {
+	if m.get.book.form.State != huh.StateCompleted || m.get.book.err != nil || m.action != "list" {
 		return ""
 	}
 	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "shelf-list", m.get.book.shelves).Content
+}
+
+// Error returns the terminal error, if any, for the caller to surface after
+// the program exits.
+func (m getShelfModel) Error() error {
+	return m.get.book.err
 }
 
 // GetShelfForm to be used for editing descriptions/names in future
@@ -190,23 +181,21 @@ func (m editShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.editor.book.width = min(msg.Width, maxWidth) - m.editor.book.styles.Base.GetHorizontalFrameSize()
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "ctrl+z":
+		if msg.String() == "ctrl+z" {
 			switch m.action {
-			case "edit":
+			case "edit", "add":
 				getScreen := GetShelfForm(m.editor.book.shelves, m.editor.config, m.action)
 				return getScreen, getScreen.Init()
 			}
-		case "ctrl+c":
-			return m, tea.Interrupt
-		case "esc":
-			return m, tea.Quit
+		}
+		if cmd, handled := handleCommonKeys(m.editor.book.form, msg); handled {
+			return m, cmd
 		}
 	case shelfSavedMsg:
 		return m, tea.Quit
 	case errMsg:
 		m.editor.book.err = msg
-		return m, nil
+		return m, tea.Quit
 	}
 
 	var cmds []tea.Cmd
@@ -219,8 +208,25 @@ func (m editShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.editor.book.form.State == huh.StateCompleted {
-		m.editor.collection.Shelf = m.editor.shelf
-		cmds = append(cmds, m.editor.updateShelfFileCmd(m.action))
+		newM := m
+		if m.action == "add" {
+			shelf, err := book.NewShelf(m.editor.shelf.Name, m.editor.shelf.Description)
+			if err != nil {
+				newM.editor.book.err = err
+				return newM, nil
+			}
+			collection, err := book.NewCollection(shelf, m.editor.collection.Name, m.editor.collection.Description)
+			if err != nil {
+				newM.editor.book.err = err
+				return newM, nil
+			}
+			shelf.AddCollection(collection)
+			shelf.AddFileDetail(newM.editor.config)
+			newM.editor.shelf = shelf
+			newM.editor.collection = collection
+		}
+		cmds = append(cmds, newM.editor.updateShelfFileCmd(newM.action))
+		return newM, tea.Batch(cmds...)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -273,10 +279,16 @@ func (m editShelfModel) View() tea.View {
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m editShelfModel) ResultView() string {
-	if m.editor.book.form.State != huh.StateCompleted {
+	if m.editor.book.form.State != huh.StateCompleted || m.editor.book.err != nil {
 		return ""
 	}
 	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "shelf-add", m.editor.collection).Content
+}
+
+// Error returns the terminal error, if any, for the caller to surface after
+// the program exits.
+func (m editShelfModel) Error() error {
+	return m.editor.book.err
 }
 
 func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config, action string) editShelfModel {
@@ -284,6 +296,9 @@ func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config,
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
 	m.book.shelves = bs
+	if shelf == nil {
+		shelf = &book.Shelf{}
+	}
 	m.shelf = shelf
 	m.collection = &book.Collection{}
 	m.config = config
@@ -317,6 +332,9 @@ func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config,
 			huh.NewInput().
 				Title("Name of new collection?").
 				Description("This will be immortalized, be certain.").
+				Validate(func(s string) error {
+					return m.shelf.ValidateNewCollectionName(s)
+				}).
 				Value(&m.collection.Name),
 
 			huh.NewInput().
@@ -362,18 +380,6 @@ func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config,
 func (m *shelfModel) updateShelfFileCmd(action string) tea.Cmd {
 	return func() tea.Msg {
 		if action == "add" {
-			m.shelf.AddCollection(m.collection)
-			m.shelf.AddFileDetail(m.config)
-
-			now := book.NowTimestamp()
-			m.shelf.SchemaVersion = book.IntPtr(2)
-			m.shelf.ID = book.GenerateShelfID(m.shelf.Name)
-			m.shelf.CreatedAt = now
-			m.shelf.UpdatedAt = now
-			m.collection.ID = book.GenerateCollectionID(m.shelf.Name, m.collection.Name)
-			m.collection.CreatedAt = now
-			m.collection.UpdatedAt = now
-
 			if err := catalog.UpdateShelfFile(m.shelf); err != nil {
 				return errMsg{err}
 			}

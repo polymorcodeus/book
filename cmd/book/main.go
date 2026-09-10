@@ -703,6 +703,11 @@ func runProgram(screen model.RootScreen) error {
 	if err != nil {
 		return err
 	}
+	if ep, ok := m.(model.ErrorProvider); ok {
+		if err := ep.Error(); err != nil {
+			return err
+		}
+	}
 	if rp, ok := m.(model.ResultProvider); ok {
 		if v := rp.ResultView(); v != "" {
 			fmt.Print(v)

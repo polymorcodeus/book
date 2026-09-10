@@ -29,7 +29,7 @@ func (m markModel) verifyCollection() bool {
 	return slices.Contains(validCollections, collection)
 }
 
-func (m *markModel) verifyMark() bool {
+func (m markModel) verifyMark() bool {
 	mark := m.book.form.GetString("mark")
 
 	// Still needed for custom banner title
@@ -40,34 +40,47 @@ func (m *markModel) verifyMark() bool {
 	return false
 }
 
-func (m *markModel) reloadMarkModel() {
-	shelf := m.book.form.GetString("shelf")
-	collection := m.book.form.GetString("collection")
-	mark := m.book.form.GetString("mark")
+func (m getMarkModel) reloadFromForm() getMarkModel {
+	shelfName := m.get.book.form.GetString("shelf")
+	collectionName := m.get.book.form.GetString("collection")
 
-	s, _ := m.book.shelves.Shelf(shelf)
-	m.shelf = s
-	if s == nil {
-		m.collection = nil
-		m.mark = nil
-		return
+	shelf, _ := m.get.book.shelves.Shelf(shelfName)
+	m.get.shelf = shelf
+	if shelf == nil {
+		m.get.collection = nil
+		if m.action != "add" {
+			m.get.mark = nil
+		}
+		return m
 	}
-	m.collection = s.Collection(collection)
-	if m.collection == nil {
-		m.mark = nil
-		return
+
+	m.get.collection = shelf.Collection(collectionName)
+	if m.get.collection == nil {
+		if m.action != "add" {
+			m.get.mark = nil
+		}
+		return m
 	}
-	m.mark = m.collection.Mark(mark)
+
+	if m.action != "add" {
+		m.get.mark = m.get.collection.Mark(m.get.book.form.GetString("mark"))
+	}
+	return m
 }
 
-func (m *markModel) loadMarkParents() {
-	shelf, _ := m.book.shelves.Shelf(m.book.form.GetString("shelf"))
-	m.mark.Shelf = shelf
-	if shelf == nil {
-		m.mark.Collection = nil
-		return
+func (m markModel) withParents() markModel {
+	if m.mark == nil {
+		return m
 	}
-	m.mark.Collection = shelf.Collection(m.book.form.GetString("collection"))
+	shelf, _ := m.book.shelves.Shelf(m.book.form.GetString("shelf"))
+	if shelf == nil {
+		return m
+	}
+	newMark := *m.mark
+	newMark.Shelf = shelf
+	newMark.Collection = shelf.Collection(m.book.form.GetString("collection"))
+	m.mark = &newMark
+	return m
 }
 
 func (m *markModel) updateShelfFileCmd(action string) tea.Cmd {
@@ -101,20 +114,15 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.get.book.width = min(msg.Width, maxWidth) - m.get.book.styles.Base.GetHorizontalFrameSize()
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+p":
-			return m, m.get.book.form.PrevGroup()
-		case "ctrl+c":
-			return m, tea.Interrupt
-		case "esc":
-			return m, tea.Quit
+	case tea.KeyPressMsg:
+		if cmd, handled := handleCommonKeys(m.get.book.form, msg); handled {
+			return m, cmd
 		}
 	case shelfSavedMsg:
 		return m, tea.Quit
 	case errMsg:
 		m.get.book.err = msg
-		return m, nil
+		return m, tea.Quit
 	}
 
 	var cmds []tea.Cmd
@@ -126,40 +134,20 @@ func (m getMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
-	// Initialize display
-	if m.get.shelf == nil {
-		m.get.shelf = &book.Shelf{}
-	}
-
-	// Update model after form has been updated
+	// Keep model state in sync with form selections.
 	if m.get.book.form.State != huh.StateCompleted {
-		if m.get.book.form.GetString("shelf") != "" {
-			shelf, _ := m.get.book.shelves.Shelf(m.get.book.form.GetString("shelf"))
-			m.get.shelf = shelf
-		}
-
-		if m.get.verifyCollection() {
-			// Load valid collection into model to reset when shelf changes
-			m.get.collection = m.get.shelf.Collection(m.get.book.form.GetString("collection"))
-
-			if m.get.verifyMark() {
-				// Load valid mark into model for Get|Edit|Delete
-				if m.get.mark == nil {
-					m.get.reloadMarkModel()
-				}
-			}
-		}
+		m = m.reloadFromForm()
 	}
 
 	if m.get.book.form.State == huh.StateCompleted {
 		// Reload mark and model from final form fields
 		if m.action != "add" {
-			m.get.reloadMarkModel()
+			m = m.reloadFromForm()
 		}
 
 		switch m.action {
 		case "add", "edit":
-			m.get.loadMarkParents()
+			m.get = m.get.withParents()
 			editScreen := editMarkForm(m.get.book.shelves, m.get.mark, m.get.config, m.action)
 			return editScreen, editScreen.Init()
 		case "get":
@@ -210,8 +198,6 @@ func (m getMarkModel) View() tea.View {
 				displayCollection = m.get.collection.Name
 
 				if m.get.verifyMark() {
-					// Need to load selected mark for display
-					m.get.reloadMarkModel()
 					displayMark = m.get.mark.Name + "\n\n" + m.get.mark.URL + "\n\n" + lipglossList(s.None, m.get.mark.Tags) + "\n"
 				}
 			}
@@ -243,7 +229,7 @@ func (m getMarkModel) View() tea.View {
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m getMarkModel) ResultView() string {
-	if m.get.book.form.State != huh.StateCompleted {
+	if m.get.book.form.State != huh.StateCompleted || m.get.book.err != nil {
 		return ""
 	}
 	s := m.get.book.styles
@@ -257,6 +243,12 @@ func (m getMarkModel) ResultView() string {
 		return renderCompletedView(s, t, "mark-delete", m.get.mark).Content
 	}
 	return ""
+}
+
+// Error returns the terminal error, if any, for the caller to surface after
+// the program exits.
+func (m getMarkModel) Error() error {
+	return m.get.book.err
 }
 
 // GetMarkForm returns a TUI model for navigating shelves, collections, and marks.
@@ -367,9 +359,8 @@ func (m editMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.editor.book.width = min(msg.Width, maxWidth) - m.editor.book.styles.Base.GetHorizontalFrameSize()
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+z":
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+z" {
 			switch m.action {
 			case "edit":
 				getScreen := GetMarkForm(m.editor.book.shelves, nil, m.editor.config, m.action)
@@ -378,16 +369,15 @@ func (m editMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				getScreen := GetMarkForm(m.editor.book.shelves, m.editor.mark, m.editor.config, m.action)
 				return getScreen, getScreen.Init()
 			}
-		case "ctrl+c":
-			return m, tea.Interrupt
-		case "esc":
-			return m, tea.Quit
+		}
+		if cmd, handled := handleCommonKeys(m.editor.book.form, msg); handled {
+			return m, cmd
 		}
 	case shelfSavedMsg:
 		return m, tea.Quit
 	case errMsg:
 		m.editor.book.err = msg
-		return m, nil
+		return m, tea.Quit
 	}
 
 	var cmds []tea.Cmd
@@ -400,7 +390,10 @@ func (m editMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.editor.book.form.State == huh.StateCompleted {
-		cmds = append(cmds, m.editor.updateShelfFileCmd(m.action))
+		newM := m
+		newM.editor = newM.editor.withParents()
+		cmds = append(cmds, newM.editor.updateShelfFileCmd(newM.action))
+		return newM, tea.Batch(cmds...)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -454,7 +447,7 @@ func (m editMarkModel) View() tea.View {
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m editMarkModel) ResultView() string {
-	if m.editor.book.form.State != huh.StateCompleted {
+	if m.editor.book.form.State != huh.StateCompleted || m.editor.book.err != nil {
 		return ""
 	}
 	s := m.editor.book.styles
@@ -466,6 +459,12 @@ func (m editMarkModel) ResultView() string {
 		return renderCompletedView(s, t, "mark-edit", m.editor.mark).Content
 	}
 	return ""
+}
+
+// Error returns the terminal error, if any, for the caller to surface after
+// the program exits.
+func (m editMarkModel) Error() error {
+	return m.editor.book.err
 }
 
 func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) editMarkModel {
