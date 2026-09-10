@@ -577,6 +577,18 @@ func (bs *BookShelves) ValidateNewShelfName(name string) error {
 	return nil
 }
 
+// ValidateNewCollectionName returns an error if name is empty or already in
+// use within the shelf.
+func (s *Shelf) ValidateNewCollectionName(name string) error {
+	if name == "" {
+		return fmt.Errorf("collection name is required")
+	}
+	if _, ok := s.Collections[name]; ok {
+		return fmt.Errorf("collection already exists")
+	}
+	return nil
+}
+
 // ParseTagFilter parses the search --tags grammar into AND clauses of OR tags.
 // A plus (+) separates AND clauses and a comma (,) separates OR alternatives
 // within a clause, so "a,b+c" means (a OR b) AND c. Empty groups (for example

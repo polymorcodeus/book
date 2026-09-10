@@ -73,6 +73,20 @@ type errMsg struct{ error }
 
 type shelfSavedMsg struct{}
 
+// handleCommonKeys routes shared navigation keys for all TUI forms. It returns
+// the command to run and true if the key was handled.
+func handleCommonKeys(form *huh.Form, msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "ctrl+c":
+		return tea.Interrupt, true
+	case "esc":
+		return tea.Quit, true
+	case "ctrl+p":
+		return form.PrevGroup(), true
+	}
+	return nil, false
+}
+
 // Book is the shared TUI state container used by all screen models.
 type Book struct {
 	err     error
@@ -139,6 +153,12 @@ func (b Book) statusPanel(form, content string, height int) string {
 // program returns.
 type ResultProvider interface {
 	ResultView() string
+}
+
+// ErrorProvider is implemented by models that carry a terminal error to be
+// returned by the caller after the program exits.
+type ErrorProvider interface {
+	Error() error
 }
 
 // altScreenView returns a view rendered in the alternate screen buffer. The
