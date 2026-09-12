@@ -33,7 +33,7 @@ book mark list --shelf dev --collection tools --format json
 Build from source:
 
 ```bash
-go install gitlab.com/polymorcodeus/book@latest
+go install github.com/polymorcodeus/book@latest
 ```
 
 Or clone and build:
