@@ -11,7 +11,7 @@ require (
 	github.com/polymorcodeus/gofiglet v0.3.0
 	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli-validation v0.0.0-20230629031421-92802a7fd6e9
-	github.com/urfave/cli/v3 v3.11.0
+	github.com/urfave/cli/v3 v3.12.0
 	modernc.org/sqlite v1.58.0
 )
 
