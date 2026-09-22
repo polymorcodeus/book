@@ -1,23 +1,19 @@
-// Package book data models, catalog theme and templates, and their methods
+// Package book data models, catalog templates, and their methods
 package book
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/url"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/polymorcodeus/book/internal/theme"
 )
-
-const errorBullet string = "󰯷" // "nf-md-alpha_e_box_outline
 
 // TOMLFile defines exportable TOML files
 type TOMLFile interface {
@@ -26,83 +22,13 @@ type TOMLFile interface {
 
 // Config holds internal application configuration settings, including loaded files
 type Config struct {
-	CatalogFormat string                  `toml:"catalog_format"`
-	ShelfRoot     string                  `toml:"shelf_directory"`
-	Autoconfirm   bool                    `toml:"autoconfirm"`   // edit to bypass --confirm for non-interactive adds
-	Interactive   bool                    `toml:"interactive"`   // edit to bypass TUI - false by default
-	ConfigFile    string                  `toml:"-"`             // path to config file, typical BOOK_CONFIG
-	ThemeFile     string                  `toml:"theme_file"`    // path to theme file, typical BOOK_THEME
-	TemplateFile  string                  `toml:"template_file"` // path to theme file, typical BOOK_TEMPLATE
-	Theme         *theme.Theme            `toml:"-"`             // loaded at run time
-	Templates     map[string]ViewTemplate `toml:"-"`             // loaded at run time
-}
-
-// LoadTheme loads the theme file or falls back to defaults.
-func (cfg *Config) LoadTheme(interactive bool) error {
-	cfg.Theme = theme.NewTheme(&theme.ThemeConfig{})
-
-	// load theme file or use defaults for TUI/interactive features
-	if interactive {
-		raw, err := theme.LoadThemeConfig(cfg.ThemeFile)
-		if err != nil {
-			return err
-		}
-		cfg.Theme = theme.NewTheme(raw) // nil raw = defaults
-	}
-	return nil
-}
-
-// LoadTemplates loads user template overrides on top of built-in defaults.
-func (cfg *Config) LoadTemplates() error {
-	cfg.Templates = make(map[string]ViewTemplate)
-
-	// Start with defaults
-	maps.Copy(cfg.Templates, DefaultViewTemplates)
-
-	data, err := os.ReadFile(cfg.TemplateFile)
-	if os.IsNotExist(err) {
-		// Not an error — user hasn't customized, defaults are fine
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read templates: %w", err)
-	}
-
-	var userTmpls map[string]ViewTemplate
-	if err := json.Unmarshal(data, &userTmpls); err != nil {
-		return fmt.Errorf("parse templates: %w", err)
-	}
-
-	// Overlay user partials onto defaults
-	for k, user := range userTmpls {
-		base, ok := cfg.Templates[k]
-		if !ok {
-			// Unknown key — skip or warn
-			continue
-		}
-		if user.PrimaryTitle != "" {
-			base.PrimaryTitle = user.PrimaryTitle
-		}
-		if user.SecondaryTitle != "" {
-			base.SecondaryTitle = user.SecondaryTitle
-		}
-		if user.ListTitle != "" {
-			base.ListTitle = user.ListTitle
-		}
-		cfg.Templates[k] = base
-	}
-
-	return nil
-}
-
-// StyledError returns a styled error string for interactive mode, or plain text otherwise.
-func (cfg *Config) StyledError(e error) string {
-	if !cfg.Interactive {
-		return e.Error()
-	}
-	// return styled error only in interactive mode
-	return cfg.Theme.Style("highlight").Render("HEAVENS TO MURGATROYD!") + "\n" +
-		cfg.Theme.Style("error").Render(errorBullet, e.Error())
+	CatalogFormat string `toml:"catalog_format"`
+	ShelfRoot     string `toml:"shelf_directory"`
+	Autoconfirm   bool   `toml:"autoconfirm"`   // edit to bypass --confirm for non-interactive adds
+	Interactive   bool   `toml:"interactive"`   // edit to bypass TUI - false by default
+	ConfigFile    string `toml:"-"`             // path to config file, typical BOOK_CONFIG
+	ThemeFile     string `toml:"theme_file"`    // path to theme file, typical BOOK_THEME
+	TemplateFile  string `toml:"template_file"` // path to theme file, typical BOOK_TEMPLATE
 }
 
 // FileConfig holds externally writable application configuration settings
@@ -615,21 +541,19 @@ func ParseTagFilter(input string) ([][]string, error) {
 	return result, nil
 }
 
-// PrintCatalog serializes an item as JSON or TOML to stdout.
-func PrintCatalog[T any](item T, format string) error {
+// MarshalCatalog serializes an item as JSON or TOML.
+func MarshalCatalog[T any](item T, format string) ([]byte, error) {
 	switch format {
 	case "json":
-		jsonData, err := json.MarshalIndent(item, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(jsonData))
+		return json.MarshalIndent(item, "", "  ")
 	case "toml":
-		if err := toml.NewEncoder(os.Stdout).Encode(item); err != nil {
-			return err
+		var buf bytes.Buffer
+		if err := toml.NewEncoder(&buf).Encode(item); err != nil {
+			return nil, err
 		}
+		return buf.Bytes(), nil
 	}
-	return nil
+	return nil, nil
 }
 
 // NewShelf creates a new v2 shelf with the given name and description.

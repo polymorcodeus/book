@@ -9,6 +9,7 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
 const maxWidth = 120
@@ -35,7 +36,7 @@ type Styles struct {
 }
 
 // NewStyles builds a Styles instance from the current theme configuration.
-func NewStyles(config *book.Config) *Styles {
+func NewStyles(config *theme.UIConfig) *Styles {
 	s := Styles{}
 	s.Base = lipgloss.NewStyle().
 		Padding(1, 4, 0, 1)

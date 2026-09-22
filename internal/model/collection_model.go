@@ -10,13 +10,14 @@ import (
 
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
 type collectionModel struct {
 	book       *Book
 	shelf      *book.Shelf
 	collection *book.Collection
-	config     *book.Config
+	config     *theme.UIConfig
 }
 
 type getCollectionModel struct {
@@ -133,7 +134,7 @@ func (m getCollectionModel) Error() error {
 }
 
 // GetCollectionForm to be used for editing descriptions/names in future
-func GetCollectionForm(bs *book.BookShelves, config *book.Config, action string) getCollectionModel {
+func GetCollectionForm(bs *book.BookShelves, config *theme.UIConfig, action string) getCollectionModel {
 	m := collectionModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
@@ -319,7 +320,7 @@ func (m editCollectionModel) Error() error {
 	return m.editor.book.err
 }
 
-func editCollectionForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config, action string) editCollectionModel {
+func editCollectionForm(bs *book.BookShelves, shelf *book.Shelf, config *theme.UIConfig, action string) editCollectionModel {
 	m := collectionModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates

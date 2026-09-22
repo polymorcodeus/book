@@ -19,20 +19,24 @@ cmd/book/
 ├── main.go          # CLI command tree (urfave/cli/v3), flags, Before hook
 ├── shelf.go         # shelf command actions + TUI root screen
 ├── collection.go    # collection command actions + TUI root screen
-└── mark.go          # mark command actions (add, get, edit, remove) + TUI root screen
+├── mark.go          # mark command actions (add, get, edit, remove) + TUI root screen
+├── catalog.go       # book catalog theme/template/config (dumpDefaults, printConfigSources)
+├── spinner.go       # huh spinner wrappers: loadCatalog, loadWebsite
+└── print.go         # printCatalog (marshal + print helper)
 
 internal/book/
 └── types.go         # Core data structs: Config, BookShelves, Shelf, Collection, Mark
 
 internal/catalog/
-├── catalog.go       # VerifyExists, LoadShelves, LoadCatalog (spinner)
+├── catalog.go       # VerifyExists, LoadShelves
 └── toml.go          # TOML read/write, atomic writes, config creation
 
 internal/web/
-└── web.go           # OpenURL, WebsiteTitle, LoadWebsite
+└── web.go           # OpenURL, WebsiteTitle
 
 internal/theme/
-└── theme.go         # Theme loading from JSON, color/style resolution, huh theme generation
+├── theme.go         # Theme loading from JSON, color/style resolution, huh theme generation
+└── uiconfig.go      # UIConfig (embeds *book.Config + Theme/Templates), StyledError
 
 internal/model/
 ├── tea.go           # Shared TUI types: Styles, Book, RootScreen, errMsg
@@ -43,10 +47,10 @@ internal/model/
 
 | Package | Imports | Does NOT import |
 |---------|---------|-----------------|
-| `internal/book` | stdlib + `theme` | `internal/catalog`, `internal/model` |
-| `internal/theme` | `huh`, `lipgloss`, `json` | `internal/book`, `internal/catalog`, `internal/model` |
-| `internal/web` | `book`, `goquery`, `huh`, `lipgloss`, `spinner` | `internal/catalog`, `internal/model` |
-| `internal/catalog` | `book`, `toml`, `huh`, `lipgloss`, `spinner`, `theme` | `internal/model` |
+| `internal/book` | stdlib + `toml` | `internal/catalog`, `internal/model`, `internal/theme` |
+| `internal/theme` | `internal/book`, `huh`, `lipgloss`, `json` | `internal/catalog`, `internal/model` |
+| `internal/web` | `goquery` | `internal/book`, `internal/catalog`, `internal/model` |
+| `internal/catalog` | `book`, `toml` | `internal/model`, `internal/theme` |
 | `internal/model` | `book`, `catalog`, `theme`, `web`, `huh`, `lipgloss`, `bubbletea` | — |
 | `cmd` | everything | — |
 
@@ -66,7 +70,7 @@ All blocking I/O must happen inside `tea.Cmd` closures, not in `Update()`. File 
 
 ### Error Handling
 
-Return errors rather than silently falling back. The codebase favors colloquial error messages (e.g., "betta check yerself") — keep the tone, but always propagate the error to the caller. `StyledError` renders a styled banner in interactive mode; plain text in non-interactive mode.
+Return errors rather than silently falling back. The codebase favors colloquial error messages (e.g., "betta check yerself") — keep the tone, but always propagate the error to the caller. `theme.UIConfig.StyledError` renders a styled banner in interactive mode; plain text in non-interactive mode.
 
 ### TOML Tags
 

@@ -6,12 +6,13 @@ import (
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
-func collections(cache *indexCache, bs *book.BookShelves, shelfName string, format string, config *book.Config) error {
+func collections(cache *indexCache, bs *book.BookShelves, shelfName string, format string, config *theme.UIConfig) error {
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && !config.Interactive {
-		idx, err := cache.sync(config)
+		idx, err := cache.sync(config.Config)
 		if err != nil {
 			return err
 		}
@@ -25,13 +26,13 @@ func collections(cache *indexCache, bs *book.BookShelves, shelfName string, form
 			}
 			return nil
 		}
-		return book.PrintCatalog(names, format)
+		return printCatalog(names, format)
 	}
 
 	return runProgram(collectionRootScreen(bs, "list", config))
 }
 
-func addCollection(bs *book.BookShelves, shelfName, collectionName, description string, config *book.Config) error {
+func addCollection(bs *book.BookShelves, shelfName, collectionName, description string, config *theme.UIConfig) error {
 	if err := requireFlags("shelf", shelfName, "name", collectionName); err != nil {
 		if !config.Interactive {
 			return err
@@ -77,7 +78,7 @@ func removeCollection(bs *book.BookShelves, shelfName, collectionName string, co
 	return catalog.UpdateShelfFile(shelf)
 }
 
-func collectionRootScreen(bs *book.BookShelves, action string, config *book.Config) model.RootScreen {
+func collectionRootScreen(bs *book.BookShelves, action string, config *theme.UIConfig) model.RootScreen {
 	return model.RootScreen{
 		Model: model.GetCollectionForm(bs, config, action),
 	}
