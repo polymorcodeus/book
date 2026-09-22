@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/huh/v2/spinner"
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -66,24 +65,4 @@ func WebsiteTitle(ctx context.Context, url string) (string, error) {
 	default:
 		return "", fmt.Errorf("unchecked error: %d", res.StatusCode)
 	}
-}
-
-// LoadWebsite fetches a page title with a spinner and 10-second timeout. The
-// provided context is honoured and capped at 10 seconds.
-func LoadWebsite(ctx context.Context, url string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	var title string
-	var err error
-
-	return title, spinner.New().
-		Context(ctx).
-		ActionWithErr(func(context.Context) error {
-			title, err = WebsiteTitle(ctx, url)
-			return err
-		}).
-		Title("Loading mark title ...").
-		Type(spinner.Line).
-		Run()
 }

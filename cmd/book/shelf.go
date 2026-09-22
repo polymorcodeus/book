@@ -7,11 +7,12 @@ import (
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
-func shelves(cache *indexCache, bs *book.BookShelves, format string, config *book.Config) error {
+func shelves(cache *indexCache, bs *book.BookShelves, format string, config *theme.UIConfig) error {
 	if !config.Interactive {
-		idx, err := cache.sync(config)
+		idx, err := cache.sync(config.Config)
 		if err != nil {
 			return err
 		}
@@ -25,13 +26,13 @@ func shelves(cache *indexCache, bs *book.BookShelves, format string, config *boo
 			}
 			return nil
 		}
-		return book.PrintCatalog(names, format)
+		return printCatalog(names, format)
 	}
 
 	return runProgram(shelfRootScreen(bs, "list", config))
 }
 
-func addShelf(bs *book.BookShelves, name, description string, config *book.Config) error {
+func addShelf(bs *book.BookShelves, name, description string, config *theme.UIConfig) error {
 	if err := requireFlag("name", name); err != nil {
 		if !config.Interactive {
 			return err
@@ -47,7 +48,7 @@ func addShelf(bs *book.BookShelves, name, description string, config *book.Confi
 	if err != nil {
 		return err
 	}
-	shelf.AddFileDetail(config)
+	shelf.AddFileDetail(config.Config)
 	if err := catalog.UpdateShelfFile(shelf); err != nil {
 		return err
 	}
@@ -75,7 +76,7 @@ func removeShelf(bs *book.BookShelves, name string, confirmed bool) error {
 	return nil
 }
 
-func shelfRootScreen(bs *book.BookShelves, action string, config *book.Config) model.RootScreen {
+func shelfRootScreen(bs *book.BookShelves, action string, config *theme.UIConfig) model.RootScreen {
 	return model.RootScreen{
 		Model: model.GetShelfForm(bs, config, action),
 	}

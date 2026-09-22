@@ -19,6 +19,7 @@ import (
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
 var (
@@ -53,7 +54,7 @@ func Main() {
 	var interactive bool
 	var format string
 
-	var config *book.Config
+	var config *theme.UIConfig
 	var configFile string
 	var themeFile string
 	var templateFile string
@@ -163,14 +164,16 @@ func Main() {
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			config = &book.Config{
-				ConfigFile:    configFile,
-				ThemeFile:     themeFile,
-				TemplateFile:  templateFile,
-				CatalogFormat: catalogFormat,
-				ShelfRoot:     shelfDir,
-				Autoconfirm:   confirm,
-				Interactive:   interactive,
+			config = &theme.UIConfig{
+				Config: &book.Config{
+					ConfigFile:    configFile,
+					ThemeFile:     themeFile,
+					TemplateFile:  templateFile,
+					CatalogFormat: catalogFormat,
+					ShelfRoot:     shelfDir,
+					Autoconfirm:   confirm,
+					Interactive:   interactive,
+				},
 			}
 
 			// Load theme-file (uses built-in defaults if file doesn't exist), use Huhbase as fallback
@@ -204,7 +207,7 @@ func Main() {
 				cmd.Args().First() == "collection" ||
 				cmd.Args().First() == "mark"
 			if cmd.Args().Len() > 1 && needsCatalog && !isSearch {
-				if err := catalog.LoadCatalog(&bookShelves, config, config.Interactive); err != nil {
+				if err := loadCatalog(&bookShelves, config.Config, config.Interactive); err != nil {
 					return ctx, cli.Exit(config.StyledError(err), 1)
 				}
 			}
@@ -576,7 +579,7 @@ func Main() {
 				Name:  "migrate",
 				Usage: "migrate shelf TOML files from v1 to v2 schema",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if err := migrate(config); err != nil {
+					if err := migrate(config.Config); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
@@ -594,7 +597,7 @@ func Main() {
 					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if err := gc(cache, config, retentionDays); err != nil {
+					if err := gc(cache, config.Config, retentionDays); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
@@ -612,7 +615,7 @@ func Main() {
 					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if err := doctor(cache, config, fix); err != nil {
+					if err := doctor(cache, config.Config, fix); err != nil {
 						return cli.Exit(config.StyledError(err), 1)
 					}
 					return nil
@@ -626,7 +629,7 @@ func Main() {
 						Name:  "rebuild",
 						Usage: "wipe and rebuild the index from shelf TOML files",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := runIndexRebuild(cache, config); err != nil {
+							if err := runIndexRebuild(cache, config.Config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -636,7 +639,7 @@ func Main() {
 						Name:  "sync",
 						Usage: "reconcile the index with changes to shelf TOML files",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := runIndexSync(cache, config); err != nil {
+							if err := runIndexSync(cache, config.Config); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -652,7 +655,7 @@ func Main() {
 						Name:  "theme",
 						Usage: "creates theme.json for TUI customization from default values",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := catalog.DumpDefaults(config, "theme"); err != nil {
+							if err := dumpDefaults(config.Config, "theme"); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -662,7 +665,7 @@ func Main() {
 						Name:  "template",
 						Usage: "creates template.json for TUI customization from default values",
 						Action: func(ctx context.Context, cmd *cli.Command) error {
-							if err := catalog.DumpDefaults(config, "template"); err != nil {
+							if err := dumpDefaults(config.Config, "template"); err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
 							return nil
@@ -674,14 +677,14 @@ func Main() {
 						Action: func(ctx context.Context, cmd *cli.Command) error {
 							// Create config-file if one does not exist
 							if exists, err := catalog.VerifyExists(config.ConfigFile); !exists {
-								if err := catalog.EnsureConfig(config); err != nil {
+								if err := catalog.EnsureConfig(config.Config); err != nil {
 									return cli.Exit(config.StyledError(err), 1)
 								}
 								fmt.Printf("%s - created.", config.ConfigFile)
 							} else if err != nil {
 								return cli.Exit(config.StyledError(err), 1)
 							}
-							return catalog.PrintConfigSources(config)
+							return printConfigSources(config)
 						},
 					},
 				},

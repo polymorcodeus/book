@@ -901,3 +901,51 @@ func TestUpdateMarkClearsTags(t *testing.T) {
 		t.Errorf("Tags = %v, want still empty after nil", m.Tags)
 	}
 }
+
+func TestMarshalCatalog(t *testing.T) {
+	item := struct {
+		Name string   `json:"name" toml:"name"`
+		Tags []string `json:"tags" toml:"tags"`
+	}{Name: "example", Tags: []string{"a", "b"}}
+
+	tests := []struct {
+		name    string
+		format  string
+		want    string
+		wantNil bool
+	}{
+		{
+			name:   "json",
+			format: "json",
+			want:   "{\n  \"name\": \"example\",\n  \"tags\": [\n    \"a\",\n    \"b\"\n  ]\n}",
+		},
+		{
+			name:   "toml",
+			format: "toml",
+			want:   "name = \"example\"\ntags = [\"a\", \"b\"]\n",
+		},
+		{
+			name:    "empty format returns nil",
+			format:  "",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MarshalCatalog(item, tt.format)
+			if err != nil {
+				t.Fatalf("MarshalCatalog error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("got %q, want nil", got)
+				}
+				return
+			}
+			if string(got) != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

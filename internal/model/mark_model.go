@@ -11,6 +11,7 @@ import (
 
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/internal/theme"
 	"github.com/polymorcodeus/book/internal/web"
 )
 
@@ -19,7 +20,7 @@ type markModel struct {
 	shelf      *book.Shelf
 	collection *book.Collection
 	mark       *book.Mark
-	config     *book.Config
+	config     *theme.UIConfig
 }
 
 func (m markModel) verifyCollection() bool {
@@ -252,7 +253,7 @@ func (m getMarkModel) Error() error {
 }
 
 // GetMarkForm returns a TUI model for navigating shelves, collections, and marks.
-func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) getMarkModel {
+func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *theme.UIConfig, action string) getMarkModel {
 	m := markModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
@@ -467,7 +468,7 @@ func (m editMarkModel) Error() error {
 	return m.editor.book.err
 }
 
-func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *book.Config, action string) editMarkModel {
+func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *theme.UIConfig, action string) editMarkModel {
 	m := markModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates

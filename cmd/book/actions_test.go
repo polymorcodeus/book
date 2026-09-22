@@ -9,22 +9,25 @@ import (
 
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
-func testConfig(t *testing.T) *book.Config {
+func testConfig(t *testing.T) *theme.UIConfig {
 	t.Helper()
 	tmp := t.TempDir()
-	return &book.Config{
-		CatalogFormat: "toml",
-		ShelfRoot:     tmp,
-		ConfigFile:    filepath.Join(tmp, "config"),
+	return &theme.UIConfig{
+		Config: &book.Config{
+			CatalogFormat: "toml",
+			ShelfRoot:     tmp,
+			ConfigFile:    filepath.Join(tmp, "config"),
+		},
 	}
 }
 
-func loadShelves(t *testing.T, config *book.Config) *book.BookShelves {
+func loadShelves(t *testing.T, config *theme.UIConfig) *book.BookShelves {
 	t.Helper()
 	var bs book.BookShelves
-	if err := catalog.LoadShelves(&bs, config); err != nil {
+	if err := catalog.LoadShelves(&bs, config.Config); err != nil {
 		t.Fatalf("load shelves: %v", err)
 	}
 	return &bs
@@ -39,7 +42,7 @@ func testShelf(t *testing.T, bs *book.BookShelves, name string) *book.Shelf {
 	return shelf
 }
 
-func seedShelf(t *testing.T, config *book.Config, name, collection string) *book.BookShelves {
+func seedShelf(t *testing.T, config *theme.UIConfig, name, collection string) *book.BookShelves {
 	t.Helper()
 	bs := &book.BookShelves{}
 	if err := addShelf(bs, name, "test shelf", config); err != nil {
@@ -211,7 +214,7 @@ func TestGetMark(t *testing.T) {
 	}
 
 	// Missing both should error in non-interactive mode.
-	if err := getMark(bs, "", "", "", &book.Config{Interactive: false}); err == nil {
+	if err := getMark(bs, "", "", "", &theme.UIConfig{Config: &book.Config{Interactive: false}}); err == nil {
 		t.Error("expected error when id and url are empty")
 	}
 

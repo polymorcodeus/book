@@ -8,10 +8,11 @@ import (
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
+	"github.com/polymorcodeus/book/internal/theme"
 	"github.com/polymorcodeus/book/internal/web"
 )
 
-func getMark(bs *book.BookShelves, id, url, format string, config *book.Config) error {
+func getMark(bs *book.BookShelves, id, url, format string, config *theme.UIConfig) error {
 	if id == "" && url == "" {
 		if !config.Interactive {
 			return fmt.Errorf("missing required flag: --id or --url")
@@ -36,13 +37,13 @@ func getMark(bs *book.BookShelves, id, url, format string, config *book.Config) 
 		fmt.Println(target.FullDetail())
 		return nil
 	}
-	return book.PrintCatalog(target, format)
+	return printCatalog(target, format)
 }
 
-func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *book.Config) error {
+func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collectionName string, format string, trash bool, config *theme.UIConfig) error {
 	// Trash listing reads the derived index and is always non-interactive.
 	if trash {
-		idx, err := cache.sync(config)
+		idx, err := cache.sync(config.Config)
 		if err != nil {
 			return err
 		}
@@ -52,9 +53,9 @@ func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collection
 		}
 		switch format {
 		case "toml":
-			return book.PrintCatalog(catalog.SearchResultList{Marks: deleted}, format)
+			return printCatalog(catalog.SearchResultList{Marks: deleted}, format)
 		case "json":
-			return book.PrintCatalog(deleted, format)
+			return printCatalog(deleted, format)
 		default:
 			for _, r := range deleted {
 				fmt.Printf("%s %s\n", r.Title, r.URL)
@@ -65,7 +66,7 @@ func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collection
 
 	// Non-interactive path: all required flags provided
 	if shelfName != "" && collectionName != "" && !config.Interactive {
-		idx, err := cache.sync(config)
+		idx, err := cache.sync(config.Config)
 		if err != nil {
 			return err
 		}
@@ -82,12 +83,12 @@ func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collection
 			}
 			return nil
 		}
-		return book.PrintCatalog(collection, format)
+		return printCatalog(collection, format)
 	}
 	return runProgram(markRootScreen(bs, nil, "list", config))
 }
 
-func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Config) error {
+func editMark(bs *book.BookShelves, id, title, tags, url string, config *theme.UIConfig) error {
 	if err := requireFlag("id", id); err != nil {
 		if !config.Interactive {
 			return err
@@ -120,13 +121,13 @@ func editMark(bs *book.BookShelves, id, title, tags, url string, config *book.Co
 	return catalog.UpdateShelfFile(target.Shelf)
 }
 
-func searchMarks(cache *indexCache, query string, tags string, shelfName string, collectionName string, format string, config *book.Config) error {
+func searchMarks(cache *indexCache, query string, tags string, shelfName string, collectionName string, format string, config *theme.UIConfig) error {
 	clauses, err := book.ParseTagFilter(tags)
 	if err != nil {
 		return err
 	}
 
-	idx, err := cache.sync(config)
+	idx, err := cache.sync(config.Config)
 	if err != nil {
 		return err
 	}
@@ -138,9 +139,9 @@ func searchMarks(cache *indexCache, query string, tags string, shelfName string,
 
 	switch format {
 	case "json":
-		return book.PrintCatalog(results, format)
+		return printCatalog(results, format)
 	case "toml":
-		return book.PrintCatalog(catalog.SearchResultList{Marks: results}, format)
+		return printCatalog(catalog.SearchResultList{Marks: results}, format)
 	default:
 		for _, r := range results {
 			fmt.Printf("%s %s\n", r.Title, r.URL)
@@ -149,7 +150,7 @@ func searchMarks(cache *indexCache, query string, tags string, shelfName string,
 	}
 }
 
-func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *book.Config) error {
+func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *theme.UIConfig) error {
 	mark, err := book.NewMarkFromInput(URL, book.SplitTags(tags))
 	if err != nil {
 		return err
@@ -163,7 +164,7 @@ func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string,
 	// Use provided title or fetch from URL
 	fetched := book.TitleFetchResult{}
 	if title == "" {
-		fetchedTitle, err := web.LoadWebsite(ctx, mark.URL)
+		fetchedTitle, err := loadWebsite(ctx, mark.URL)
 		if err != nil {
 			if !errors.Is(err, web.ErrTitleUnavailable) {
 				return fmt.Errorf("load website: %w", err)
@@ -201,7 +202,7 @@ func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string,
 	return runProgram(markRootScreen(bs, &mark, "add", config))
 }
 
-func removeMark(bs *book.BookShelves, id string, confirmed bool, config *book.Config) error {
+func removeMark(bs *book.BookShelves, id string, confirmed bool, config *theme.UIConfig) error {
 	if err := requireFlag("id", id); err != nil {
 		if !config.Interactive {
 			return err
@@ -266,7 +267,7 @@ func clearSoftDelete(target *book.Mark) error {
 	return catalog.UpdateShelfFile(target.Shelf)
 }
 
-func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *book.Config) model.RootScreen {
+func markRootScreen(bs *book.BookShelves, mark *book.Mark, action string, config *theme.UIConfig) model.RootScreen {
 	screen := model.GetMarkForm(bs, mark, config, action)
 	return model.RootScreen{Model: &screen}
 }

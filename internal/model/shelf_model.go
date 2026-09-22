@@ -9,13 +9,14 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/polymorcodeus/book/internal/book"
 	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/internal/theme"
 )
 
 type shelfModel struct {
 	book       *Book
 	shelf      *book.Shelf
 	collection *book.Collection
-	config     *book.Config
+	config     *theme.UIConfig
 }
 
 type getShelfModel struct {
@@ -113,7 +114,7 @@ func (m getShelfModel) Error() error {
 }
 
 // GetShelfForm to be used for editing descriptions/names in future
-func GetShelfForm(bs *book.BookShelves, config *book.Config, action string) getShelfModel {
+func GetShelfForm(bs *book.BookShelves, config *theme.UIConfig, action string) getShelfModel {
 	m := shelfModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
@@ -221,7 +222,7 @@ func (m editShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return newM, nil
 			}
 			shelf.AddCollection(collection)
-			shelf.AddFileDetail(newM.editor.config)
+			shelf.AddFileDetail(newM.editor.config.Config)
 			newM.editor.shelf = shelf
 			newM.editor.collection = collection
 		}
@@ -291,7 +292,7 @@ func (m editShelfModel) Error() error {
 	return m.editor.book.err
 }
 
-func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *book.Config, action string) editShelfModel {
+func editShelfForm(bs *book.BookShelves, shelf *book.Shelf, config *theme.UIConfig, action string) editShelfModel {
 	m := shelfModel{book: &Book{width: 0}}
 	m.book.styles = NewStyles(config)
 	m.book.tmpls = config.Templates
