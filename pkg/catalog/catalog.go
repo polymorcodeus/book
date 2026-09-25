@@ -60,7 +60,7 @@ func LoadShelves(bs *book.BookShelves, paths Paths) error {
 		if _, err := toml.DecodeFile(file, &shelf); err != nil {
 			return err
 		}
-		shelf.FilePath = ShelfPath(shelf.Name, paths)
+		shelf.FilePath = file
 		bs.AddShelf(shelf)
 	}
 
