@@ -98,6 +98,13 @@ func (m getShelfModel) View() tea.View {
 	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
 }
 
+// SkipProgram implements NonInteractive. The list action hides every form
+// group, so the screen has nothing to ask and running it through a tea
+// program would quit instantly, leaking terminal capability replies.
+func (m getShelfModel) SkipProgram() bool {
+	return m.action == "list"
+}
+
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m getShelfModel) ResultView() string {
@@ -161,6 +168,12 @@ func GetShelfForm(bs *book.BookShelves, config *theme.UIConfig, action string) g
 		WithShowHelp(false).
 		WithShowErrors(false).
 		WithTheme(config.Theme.HuhTheme(config.Interactive))
+
+	if action == "list" {
+		// Every group is hidden for list, so the form is complete by
+		// construction and never runs; see getShelfModel.SkipProgram.
+		m.book.form.State = huh.StateCompleted
+	}
 
 	return getShelfModel{
 		get:    m,
