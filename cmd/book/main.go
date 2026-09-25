@@ -700,12 +700,23 @@ func Main() {
 // runProgram runs a RootScreen TUI and prints its completion output after the
 // program exits. The interactive form renders in the alternate screen buffer
 // and is discarded on exit, so the caller prints the result below the banner
-// instead of leaving selector fragments behind.
+// instead of leaving selector fragments behind. Screens that need no input
+// (model.NonInteractive) skip the program entirely: starting and quitting a
+// tea program instantly races the terminal's capability replies into the
+// shell prompt (charmbracelet/bubbletea#1590).
 func runProgram(screen model.RootScreen) error {
+	if ni, ok := screen.Model.(model.NonInteractive); ok && ni.SkipProgram() {
+		return printResult(screen.Model)
+	}
 	m, err := tea.NewProgram(screen).Run()
 	if err != nil {
 		return err
 	}
+	return printResult(m)
+}
+
+// printResult surfaces a model's terminal error and completion output.
+func printResult(m tea.Model) error {
 	if ep, ok := m.(model.ErrorProvider); ok {
 		if err := ep.Error(); err != nil {
 			return err

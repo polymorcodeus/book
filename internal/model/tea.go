@@ -162,6 +162,17 @@ type ErrorProvider interface {
 	Error() error
 }
 
+// NonInteractive is implemented by screens whose form has no visible groups
+// for their action (e.g. shelf list). Such a form completes on the first
+// update, so the program starts and quits within milliseconds. Quitting that
+// fast races the terminal's capability-query replies: they land in the tty
+// buffer after the input reader stops and leak into the shell prompt
+// (charmbracelet/bubbletea#1590). runProgram skips the tea program for these
+// screens and prints the result directly.
+type NonInteractive interface {
+	SkipProgram() bool
+}
+
 // altScreenView returns a view rendered in the alternate screen buffer. The
 // interactive form is drawn there and discarded on exit, leaving the main
 // screen clean for the caller to print the result.
