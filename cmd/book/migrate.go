@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 func migrate(config *book.Config) error {

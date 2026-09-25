@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
 	"github.com/polymorcodeus/book/internal/theme"
-	"github.com/polymorcodeus/book/internal/web"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
+	"github.com/polymorcodeus/book/pkg/web"
 )
 
 func getMark(bs *book.BookShelves, id, url, format string, config *theme.UIConfig) error {

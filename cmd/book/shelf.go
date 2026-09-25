@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
 	"github.com/polymorcodeus/book/internal/theme"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 func shelves(cache *indexCache, bs *book.BookShelves, format string, config *theme.UIConfig) error {

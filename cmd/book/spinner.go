@@ -6,9 +6,9 @@ import (
 
 	"charm.land/huh/v2/spinner"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
-	"github.com/polymorcodeus/book/internal/web"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
+	"github.com/polymorcodeus/book/pkg/web"
 )
 
 // loadCatalog loads shelves with an optional spinner when running interactively.

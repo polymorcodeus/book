@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/pkg/book"
 )
 
 func testConfig(t *testing.T) *book.Config {

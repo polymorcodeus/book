@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/pkg/book"
 )
 
 // fixtureMigratedTOML is the expected v2 output after migrating fixtureTOML.

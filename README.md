@@ -212,7 +212,7 @@ Built on [Charm](https://charm.sh/)'s excellent BubbleTea, Huh, and Lipgloss lib
 
 ## Development
 
-Business logic lives in `internal/book` as pure, testable functions: URL validation, tag parsing, title resolution, ID generation, and shelf/collection/mark helpers. The `cmd` and `internal/model` packages are thin adapters over this layer.
+Business logic lives in `pkg/book` as pure, testable functions: URL validation, tag parsing, title resolution, ID generation, and shelf/collection/mark helpers. The `cmd` and `internal/model` packages are thin adapters over this layer.
 
 ## Contributing
 

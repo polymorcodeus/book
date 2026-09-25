@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 // indexCache holds the lazily-opened SQLite index shared by the read paths
