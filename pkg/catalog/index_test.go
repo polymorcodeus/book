@@ -8,25 +8,25 @@ import (
 	"github.com/polymorcodeus/book/pkg/book"
 )
 
-func testConfig(t *testing.T) *book.Config {
+func testPaths(t *testing.T) Paths {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(dir, "cache"))
 
-	cfg := &book.Config{
+	paths := Paths{
 		ShelfRoot:     filepath.Join(dir, "shelf.d"),
 		CatalogFormat: "toml",
 		ConfigFile:    filepath.Join(dir, "config"),
 	}
-	if err := os.MkdirAll(cfg.ShelfRoot, 0o755); err != nil {
+	if err := os.MkdirAll(paths.ShelfRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return cfg
+	return paths
 }
 
-func writeShelfFile(t *testing.T, cfg *book.Config, s *book.Shelf) {
+func writeShelfFile(t *testing.T, paths Paths, s *book.Shelf) {
 	t.Helper()
-	s.AddFileDetail(cfg)
+	s.FilePath = ShelfPath(s.Name, paths)
 	if err := CreateTOML(s); err != nil {
 		t.Fatalf("write shelf file: %v", err)
 	}
@@ -54,8 +54,8 @@ func sampleShelf() *book.Shelf {
 }
 
 func TestOpenIndexCreatesSchema(t *testing.T) {
-	cfg := testConfig(t)
-	ix, err := OpenIndex(cfg)
+	paths := testPaths(t)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
@@ -71,15 +71,15 @@ func TestOpenIndexCreatesSchema(t *testing.T) {
 }
 
 func TestUpsertAndRead(t *testing.T) {
-	cfg := testConfig(t)
-	ix, err := OpenIndex(cfg)
+	paths := testPaths(t)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
 	s := sampleShelf()
-	writeShelfFile(t, cfg, s)
+	writeShelfFile(t, paths, s)
 	if err := ix.UpsertShelf(s); err != nil {
 		t.Fatalf("UpsertShelf: %v", err)
 	}
@@ -113,8 +113,8 @@ func TestUpsertAndRead(t *testing.T) {
 }
 
 func TestCollectionNotFound(t *testing.T) {
-	cfg := testConfig(t)
-	ix, err := OpenIndex(cfg)
+	paths := testPaths(t)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
@@ -129,16 +129,16 @@ func TestCollectionNotFound(t *testing.T) {
 }
 
 func TestRebuildFromDisk(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	report, err := ix.Rebuild(cfg)
+	report, err := ix.Rebuild(paths)
 	if err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
@@ -156,21 +156,21 @@ func TestRebuildFromDisk(t *testing.T) {
 }
 
 func TestSyncIncrementalAndPrune(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
 	// No changes: everything unchanged, nothing reindexed.
-	report, err := ix.Sync(cfg)
+	report, err := ix.Sync(paths)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -182,9 +182,9 @@ func TestSyncIncrementalAndPrune(t *testing.T) {
 	s := sampleShelf()
 	s.Collections["golang"].Marks = append(s.Collections["golang"].Marks,
 		&book.Mark{ID: book.GenerateID("https://example.com"), Name: "Example", URL: "https://example.com", Tags: []string{"misc"}})
-	writeShelfFile(t, cfg, s)
+	writeShelfFile(t, paths, s)
 
-	report, err = ix.Sync(cfg)
+	report, err = ix.Sync(paths)
 	if err != nil {
 		t.Fatalf("Sync after change: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestSyncIncrementalAndPrune(t *testing.T) {
 	if err := os.Remove(s.FilePath); err != nil {
 		t.Fatal(err)
 	}
-	report, err = ix.Sync(cfg)
+	report, err = ix.Sync(paths)
 	if err != nil {
 		t.Fatalf("Sync after remove: %v", err)
 	}
@@ -221,23 +221,23 @@ func TestSyncIncrementalAndPrune(t *testing.T) {
 }
 
 func TestSyncIgnoresContentUnchangedTouch(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
 	// Rewrite identical content: mtime changes but hash does not.
-	writeShelfFile(t, cfg, sampleShelf())
+	writeShelfFile(t, paths, sampleShelf())
 
-	report, err := ix.Sync(cfg)
+	report, err := ix.Sync(paths)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -247,16 +247,16 @@ func TestSyncIgnoresContentUnchangedTouch(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
@@ -282,16 +282,16 @@ func TestSearch(t *testing.T) {
 }
 
 func TestSearchTagFilter(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
@@ -333,16 +333,16 @@ func TestSearchTagFilter(t *testing.T) {
 }
 
 func TestSearchTagsOnly(t *testing.T) {
-	cfg := testConfig(t)
-	writeShelfFile(t, cfg, sampleShelf())
+	paths := testPaths(t)
+	writeShelfFile(t, paths, sampleShelf())
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
@@ -366,7 +366,7 @@ func TestSearchTagsOnly(t *testing.T) {
 }
 
 func TestSearchExcludesSoftDeleted(t *testing.T) {
-	cfg := testConfig(t)
+	paths := testPaths(t)
 
 	v2 := 2
 	s := &book.Shelf{
@@ -384,15 +384,15 @@ func TestSearchExcludesSoftDeleted(t *testing.T) {
 			},
 		},
 	}
-	writeShelfFile(t, cfg, s)
+	writeShelfFile(t, paths, s)
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
@@ -406,7 +406,7 @@ func TestSearchExcludesSoftDeleted(t *testing.T) {
 }
 
 func TestDeletedMarks(t *testing.T) {
-	cfg := testConfig(t)
+	paths := testPaths(t)
 
 	v2 := 2
 	s := &book.Shelf{
@@ -424,15 +424,15 @@ func TestDeletedMarks(t *testing.T) {
 			},
 		},
 	}
-	writeShelfFile(t, cfg, s)
+	writeShelfFile(t, paths, s)
 
-	ix, err := OpenIndex(cfg)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
-	if _, err := ix.Rebuild(cfg); err != nil {
+	if _, err := ix.Rebuild(paths); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 

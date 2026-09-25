@@ -16,7 +16,7 @@ YELLOW=\033[0;33m
 BLUE=\033[0;34m
 NC=\033[0m # No Color
 
-.PHONY: help build test clean install uninstall fmt lint vet tidy run dev cross-compile release goreleaser-check goreleaser-snapshot
+.PHONY: help build test clean install uninstall fmt lint vet tidy run dev cross-compile release goreleaser-check goreleaser-snapshot check-deps
 
 ## help: Show this help message
 help:
@@ -35,7 +35,8 @@ help:
 	@echo "  lint        Run golangci-lint"
 	@echo "  vet         Run go vet"
 	@echo "  tidy        Tidy Go modules"
-	@echo "  check       Run all quality checks (fmt, vet, lint, test)"
+	@echo "  check-deps  Assert pkg/ stays free of TUI/CLI dependencies"
+	@echo "  check       Run all quality checks (fmt, vet, lint, test, check-deps)"
 	@echo ""
 	@echo "$(GREEN)Installation:$(NC)"
 	@echo "  install     Install binary to /usr/local/bin"
@@ -115,8 +116,17 @@ tidy:
 	@go mod tidy
 	@echo "$(GREEN)Modules tidied$(NC)"
 
+## check-deps: Assert pkg/ packages stay free of TUI/CLI dependencies
+check-deps:
+	@echo "$(BLUE)Checking pkg/ dependency graph...$(NC)"
+	@if go list -deps ./pkg/... | grep -E '^(charm\.land/(bubbletea|huh|lipgloss)|github\.com/urfave/|github\.com/polymorcodeus/book/internal)'; then \
+		echo "$(RED)forbidden dependency in pkg/ graph$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)pkg/ dependency graph is clean$(NC)"
+
 ## check: Run all quality checks
-check: fmt vet lint test
+check: fmt vet lint test check-deps
 	@echo "$(GREEN)All quality checks passed$(NC)"
 
 ## install: Install binary to /usr/local/bin

@@ -206,6 +206,48 @@ Run `book catalog theme` to generate a `theme.json` with default values. Edit co
 
 Run `book catalog template` to generate a `template.json`. This controls the title strings shown in TUI forms (e.g., the main menu header, list headers). Overlay your own values — unset keys keep their defaults.
 
+## Use as a Library
+
+The domain model and storage layer are importable Go packages, fully decoupled from the CLI and TUI:
+
+| Package | What it provides |
+| --- | --- |
+| `github.com/polymorcodeus/book/pkg/book` | Domain types (`Shelf`, `Collection`, `Mark`) and pure logic: constructors, validation, tag parsing, soft delete, merge reconciliation |
+| `github.com/polymorcodeus/book/pkg/catalog` | TOML persistence (`LoadShelves`, `UpdateShelfFile`, atomic writes), schema migration, and the derived SQLite search index |
+| `github.com/polymorcodeus/book/pkg/web` | Page-title fetching (`WebsiteTitle`) and browser opening (`OpenURL`) |
+
+```go
+paths := catalog.Paths{ShelfRoot: "/path/to/shelf.d", CatalogFormat: "toml"}
+
+shelf, _ := book.NewShelf("work", "work stuff")
+collection, _ := book.NewCollection(shelf, "golang", "go links")
+mark, _ := book.NewMarkFromInput("https://go.dev", book.SplitTags("lang,official"))
+mark.Name = "The Go Programming Language"
+mark.Shelf = shelf
+mark.Collection = collection
+mark.RecordAdd()
+collection.AddMark(&mark)
+shelf.AddCollection(collection)
+
+shelf.FilePath = catalog.ShelfPath(shelf.Name, paths)
+if err := catalog.UpdateShelfFile(shelf); err != nil {
+	// handle error
+}
+
+var shelves book.BookShelves
+if err := catalog.LoadShelves(&shelves, paths); err != nil {
+	// handle error
+}
+```
+
+Storage entry points take a narrow `catalog.Paths` (shelf directory, file format) rather than the CLI's configuration struct, so library consumers never touch flag, theme, or TUI concerns. A runnable version of this round trip lives in `pkg/book/example_test.go`.
+
+Notes:
+
+- The `pkg/` API follows the module's semver but may break on minor releases until the tool cuts v2.0.0.
+- `pkg/catalog` pulls in `modernc.org/sqlite` (pure Go, no cgo) for the search index. Depend on `pkg/book` alone if you only need the domain types.
+- `make check-deps` guards the boundary: `pkg/` never imports the TUI stack (`bubbletea`/`huh`/`lipgloss`), the CLI framework (`urfave`), or `internal/`.
+
 ## Acknowledgements
 
 Built on [Charm](https://charm.sh/)'s excellent BubbleTea, Huh, and Lipgloss libraries. Uses `gofiglet` for the ASCII banner.

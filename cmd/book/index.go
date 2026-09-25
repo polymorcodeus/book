@@ -17,7 +17,7 @@ type indexCache struct {
 // get lazily opens the derived index.
 func (c *indexCache) get(config *book.Config) (*catalog.Index, error) {
 	if c.index == nil {
-		idx, err := catalog.OpenIndex(config)
+		idx, err := catalog.OpenIndex(catalog.PathsFromConfig(config))
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,7 @@ func (c *indexCache) sync(config *book.Config) (*catalog.Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := idx.Sync(config); err != nil {
+	if _, err := idx.Sync(catalog.PathsFromConfig(config)); err != nil {
 		return nil, err
 	}
 	return idx, nil
@@ -45,7 +45,7 @@ func (c *indexCache) rebuild(config *book.Config) (*catalog.RebuildReport, error
 	if err != nil {
 		return nil, err
 	}
-	return idx.Rebuild(config)
+	return idx.Rebuild(catalog.PathsFromConfig(config))
 }
 
 // close releases the cached index, if any.
@@ -71,7 +71,7 @@ func runIndexSync(cache *indexCache, config *book.Config) error {
 		return err
 	}
 
-	report, err := idx.Sync(config)
+	report, err := idx.Sync(catalog.PathsFromConfig(config))
 	if err != nil {
 		return err
 	}

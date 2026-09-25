@@ -222,7 +222,7 @@ func (m editShelfModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return newM, nil
 			}
 			shelf.AddCollection(collection)
-			shelf.AddFileDetail(newM.editor.config.Config)
+			shelf.FilePath = catalog.ShelfPath(shelf.Name, catalog.PathsFromConfig(newM.editor.config.Config))
 			newM.editor.shelf = shelf
 			newM.editor.collection = collection
 		}

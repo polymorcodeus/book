@@ -27,7 +27,7 @@ func testConfig(t *testing.T) *theme.UIConfig {
 func loadShelves(t *testing.T, config *theme.UIConfig) *book.BookShelves {
 	t.Helper()
 	var bs book.BookShelves
-	if err := catalog.LoadShelves(&bs, config.Config); err != nil {
+	if err := catalog.LoadShelves(&bs, catalog.PathsFromConfig(config.Config)); err != nil {
 		t.Fatalf("load shelves: %v", err)
 	}
 	return &bs

@@ -17,14 +17,14 @@ func loadCatalog(bs *book.BookShelves, config *book.Config, interactive bool) er
 	defer cancel()
 
 	if !interactive {
-		return catalog.LoadShelves(bs, config)
+		return catalog.LoadShelves(bs, catalog.PathsFromConfig(config))
 	}
 
 	return spinner.New().
 		Context(ctx).
 		ActionWithErr(func(context.Context) error {
 			time.Sleep(1 * time.Second)
-			return catalog.LoadShelves(bs, config)
+			return catalog.LoadShelves(bs, catalog.PathsFromConfig(config))
 		}).
 		Title("Loading your bookshelves ...").
 		Run()

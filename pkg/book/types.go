@@ -1,4 +1,8 @@
-// Package book data models, catalog templates, and their methods
+// Package book defines the bookmark domain model (BookShelves, Shelf,
+// Collection, Mark) and the pure logic that operates on it: constructors that
+// assign stable IDs and timestamps, validation, tag parsing, soft-delete
+// bookkeeping, and merge-duplicate reconciliation. The only I/O here is
+// JSON/TOML marshaling; persistence lives in the companion catalog package.
 package book
 
 import (
@@ -7,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -20,7 +23,7 @@ type TOMLFile interface {
 	FileDetail() string
 }
 
-// Config holds internal application configuration settings, including loaded files
+// Config holds application configuration settings, including loaded files
 type Config struct {
 	CatalogFormat string `toml:"catalog_format"`
 	ShelfRoot     string `toml:"shelf_directory"`
@@ -150,14 +153,6 @@ type Shelf struct {
 	UpdatedAt     string `toml:"updated_at,omitempty" json:"updated_at,omitempty"`
 	Collections   map[string]*Collection
 	FilePath      string `toml:"-" json:"-"`
-}
-
-// AddFileDetail sets the on-disk file path for the shelf based on its name.
-func (s *Shelf) AddFileDetail(c *Config) {
-	formattedName := strings.ReplaceAll(strings.TrimSpace(s.Name), " ", "_")
-	fileName := fmt.Sprintf("%s.%s", formattedName, c.CatalogFormat)
-
-	s.FilePath = filepath.Join(c.ShelfRoot, fileName)
 }
 
 // FileDetail returns the file path of the shelf's TOML file.
@@ -377,8 +372,8 @@ func (m *Mark) FullDetail() string {
 	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", m.Shelf.Name, m.Collection.Name, m.Name, m.URL, strings.Join(m.Tags, ","))
 }
 
-// DedupUnique concatenates and deduplicates multiple slices while preserving first-seen order.
-func DedupUnique[T comparable](slice ...[]T) []T {
+// dedupUnique concatenates and deduplicates multiple slices while preserving first-seen order.
+func dedupUnique[T comparable](slice ...[]T) []T {
 	merged := slices.Concat(slice...)
 	seen := make(map[T]struct{}, len(merged))
 	unique := make([]T, 0, len(merged))
@@ -414,16 +409,11 @@ func NowTimestamp() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }
 
-// IntPtr returns a pointer to the given int value.
-func IntPtr(v int) *int {
-	return &v
-}
-
 // MergeTags combines multiple tag slices, deduplicates, removes empty strings,
 // and returns a sorted slice. Order of arguments determines priority (earlier
 // slices' items appear first in result).
 func MergeTags(sources ...[]string) []string {
-	merged := DedupUnique(sources...)
+	merged := dedupUnique(sources...)
 	return slices.DeleteFunc(merged, func(e string) bool { return e == "" })
 }
 
@@ -563,7 +553,7 @@ func NewShelf(name, description string) (*Shelf, error) {
 	}
 	now := NowTimestamp()
 	return &Shelf{
-		SchemaVersion: IntPtr(2),
+		SchemaVersion: new(2),
 		ID:            GenerateShelfID(name),
 		Name:          name,
 		Description:   description,

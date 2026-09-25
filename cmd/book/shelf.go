@@ -48,7 +48,7 @@ func addShelf(bs *book.BookShelves, name, description string, config *theme.UICo
 	if err != nil {
 		return err
 	}
-	shelf.AddFileDetail(config.Config)
+	shelf.FilePath = catalog.ShelfPath(shelf.Name, catalog.PathsFromConfig(config.Config))
 	if err := catalog.UpdateShelfFile(shelf); err != nil {
 		return err
 	}

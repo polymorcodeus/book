@@ -1,5 +1,5 @@
-// Package web is used to grep web title if not provided and handles basic
-// open method
+// Package web provides the small network helpers used when managing
+// bookmarks: fetching a page's title and opening a URL in the system browser.
 package web
 
 import (
