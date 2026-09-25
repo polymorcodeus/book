@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/theme"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 func testConfig(t *testing.T) *theme.UIConfig {

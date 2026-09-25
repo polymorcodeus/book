@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
 	"github.com/polymorcodeus/book/internal/theme"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 func collections(cache *indexCache, bs *book.BookShelves, shelfName string, format string, config *theme.UIConfig) error {

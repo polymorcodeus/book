@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/pkg/book"
 )
 
 func TestUIConfigStyledError(t *testing.T) {

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/pkg/book"
 )
 
 // printCatalog marshals an item in the given format and prints it.

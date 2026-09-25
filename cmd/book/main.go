@@ -16,10 +16,10 @@ import (
 	validation "github.com/urfave/cli-validation"
 	"github.com/urfave/cli/v3"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/model"
 	"github.com/polymorcodeus/book/internal/theme"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
 )
 
 var (

@@ -16,7 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
 
-	"github.com/polymorcodeus/book/internal/book"
+	"github.com/polymorcodeus/book/pkg/book"
 )
 
 // indexSchema creates the derived SQLite index. TOML remains the source of

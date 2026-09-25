@@ -9,10 +9,10 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/polymorcodeus/book/internal/book"
-	"github.com/polymorcodeus/book/internal/catalog"
 	"github.com/polymorcodeus/book/internal/theme"
-	"github.com/polymorcodeus/book/internal/web"
+	"github.com/polymorcodeus/book/pkg/book"
+	"github.com/polymorcodeus/book/pkg/catalog"
+	"github.com/polymorcodeus/book/pkg/web"
 )
 
 type markModel struct {
