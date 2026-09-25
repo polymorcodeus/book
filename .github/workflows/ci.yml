@@ -43,6 +43,10 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Dependency guard
+        run: |
+          ! go list -deps ./pkg/... | grep -E '^(charm\.land/(bubbletea|huh|lipgloss)|github\.com/urfave/|github\.com/polymorcodeus/book/internal)'
+
       - name: Test
         run: go test -v -race -coverprofile=coverage.out ./...
 

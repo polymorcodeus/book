@@ -38,9 +38,9 @@ func TestDedupUnique(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := DedupUnique(tt.in...)
+			got := dedupUnique(tt.in...)
 			if !slices.Equal(got, tt.want) {
-				t.Errorf("DedupUnique() = %v, want %v", got, tt.want)
+				t.Errorf("dedupUnique() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -406,9 +406,9 @@ func TestShelfIsV2(t *testing.T) {
 		wantV2 bool
 	}{
 		{"nil schema version", Shelf{}, false},
-		{"v1 schema version", Shelf{SchemaVersion: IntPtr(1)}, false},
-		{"v2 schema version", Shelf{SchemaVersion: IntPtr(2)}, true},
-		{"v3 schema version", Shelf{SchemaVersion: IntPtr(3)}, true},
+		{"v1 schema version", Shelf{SchemaVersion: new(1)}, false},
+		{"v2 schema version", Shelf{SchemaVersion: new(2)}, true},
+		{"v3 schema version", Shelf{SchemaVersion: new(3)}, true},
 	}
 
 	for _, tc := range cases {
@@ -825,7 +825,7 @@ func TestBookShelvesFindMarkByURL(t *testing.T) {
 }
 
 func TestMarkTouch(t *testing.T) {
-	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2), UpdatedAt: "old"}
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2), UpdatedAt: "old"}
 	collection := &Collection{Name: "col-1", Shelf: shelf, UpdatedAt: "old"}
 	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
 
@@ -843,7 +843,7 @@ func TestMarkTouch(t *testing.T) {
 }
 
 func TestMarkRecordAdd(t *testing.T) {
-	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2)}
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2)}
 	collection := &Collection{Name: "col-1", Shelf: shelf}
 	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
 
@@ -861,7 +861,7 @@ func TestMarkRecordAdd(t *testing.T) {
 }
 
 func TestMarkRecordDelete(t *testing.T) {
-	shelf := &Shelf{Name: "shelf-a", SchemaVersion: IntPtr(2)}
+	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2)}
 	collection := &Collection{Name: "col-1", Shelf: shelf, Marks: make([]*Mark, 0)}
 	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
 	collection.AddMark(mark)

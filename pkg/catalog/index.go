@@ -1,5 +1,3 @@
-// Package catalog handles loading of shelf files and creating/writing of toml
-// and json files
 package catalog
 
 import (
@@ -73,19 +71,19 @@ type Index struct {
 }
 
 // IndexPath returns the on-disk location of the derived index. It prefers the
-// user cache dir ($XDG_CACHE_HOME/book/index.db), falling back to the config
-// dir next to the shelf directory when the cache dir is unavailable.
-func IndexPath(config *book.Config) string {
+// user cache dir ($XDG_CACHE_HOME/book/index.db), falling back to a file next
+// to the shelf directory when the cache dir is unavailable.
+func IndexPath(paths Paths) string {
 	if cache := os.Getenv("XDG_CACHE_HOME"); cache != "" {
 		return filepath.Join(cache, "book", "index.db")
 	}
-	return filepath.Join(filepath.Dir(config.ShelfRoot), "index.db")
+	return filepath.Join(filepath.Dir(paths.ShelfRoot), "index.db")
 }
 
 // OpenIndex opens (creating if needed) the SQLite index and ensures its schema
 // is present.
-func OpenIndex(config *book.Config) (*Index, error) {
-	path := IndexPath(config)
+func OpenIndex(paths Paths) (*Index, error) {
+	path := IndexPath(paths)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create index directory: %w", err)
 	}
@@ -135,8 +133,8 @@ type SyncReport struct {
 
 // Rebuild wipes the index and re-indexes every shelf file from disk. It is the
 // escape hatch for corruption or drift.
-func (ix *Index) Rebuild(config *book.Config) (*RebuildReport, error) {
-	files, err := shelfFilePaths(config)
+func (ix *Index) Rebuild(paths Paths) (*RebuildReport, error) {
+	files, err := shelfFilePaths(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -177,8 +175,8 @@ func (ix *Index) Rebuild(config *book.Config) (*RebuildReport, error) {
 // Sync reconciles the index with the shelf files on disk. It stats each file
 // (fast path); only when mtime or size change does it re-hash the file and
 // re-index it. Files that no longer exist are pruned from the index.
-func (ix *Index) Sync(config *book.Config) (*SyncReport, error) {
-	files, err := shelfFilePaths(config)
+func (ix *Index) Sync(paths Paths) (*SyncReport, error) {
+	files, err := shelfFilePaths(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -221,8 +219,8 @@ func (ix *Index) Sync(config *book.Config) (*SyncReport, error) {
 // files whose content changed since indexing, files never indexed, and paths
 // that were indexed but no longer exist on disk. An empty result means the
 // index is current.
-func (ix *Index) StaleFiles(config *book.Config) ([]string, error) {
-	files, err := shelfFilePaths(config)
+func (ix *Index) StaleFiles(paths Paths) ([]string, error) {
+	files, err := shelfFilePaths(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -792,8 +790,8 @@ func (ix *Index) pruneRemoved(tx *sql.Tx, seen map[string]bool, report *SyncRepo
 }
 
 // shelfFilePaths returns the shelf TOML files in the shelf directory.
-func shelfFilePaths(config *book.Config) ([]string, error) {
-	globDir := fmt.Sprintf("%s/*.%s", config.ShelfRoot, config.CatalogFormat)
+func shelfFilePaths(paths Paths) ([]string, error) {
+	globDir := fmt.Sprintf("%s/*.%s", paths.ShelfRoot, paths.CatalogFormat)
 	files, err := filepath.Glob(globDir)
 	if err != nil {
 		return nil, err
@@ -801,7 +799,7 @@ func shelfFilePaths(config *book.Config) ([]string, error) {
 
 	out := files[:0]
 	for _, file := range files {
-		if filepath.Base(file) == filepath.Base(config.ConfigFile) {
+		if paths.ConfigFile != "" && filepath.Base(file) == filepath.Base(paths.ConfigFile) {
 			continue
 		}
 		out = append(out, file)

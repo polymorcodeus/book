@@ -12,7 +12,7 @@ import (
 // duplicates and rewrites the affected shelf files.
 func doctor(cache *indexCache, config *book.Config, fix bool) error {
 	var shelves book.BookShelves
-	if err := catalog.LoadShelves(&shelves, config); err != nil {
+	if err := catalog.LoadShelves(&shelves, catalog.PathsFromConfig(config)); err != nil {
 		return err
 	}
 
@@ -74,7 +74,8 @@ func doctor(cache *indexCache, config *book.Config, fix bool) error {
 // indexStaleFiles returns shelf paths whose index entries are out of date, or
 // nil when the index has not been built yet.
 func indexStaleFiles(cache *indexCache, config *book.Config) ([]string, error) {
-	exists, err := catalog.VerifyExists(catalog.IndexPath(config))
+	paths := catalog.PathsFromConfig(config)
+	exists, err := catalog.VerifyExists(catalog.IndexPath(paths))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func indexStaleFiles(cache *indexCache, config *book.Config) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return idx.StaleFiles(config)
+	return idx.StaleFiles(paths)
 }
 
 type doctorReport struct {

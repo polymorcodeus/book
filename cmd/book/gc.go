@@ -19,7 +19,7 @@ func gc(cache *indexCache, config *book.Config, retentionDays int) error {
 	}
 
 	var shelves book.BookShelves
-	if err := catalog.LoadShelves(&shelves, config); err != nil {
+	if err := catalog.LoadShelves(&shelves, catalog.PathsFromConfig(config)); err != nil {
 		return err
 	}
 

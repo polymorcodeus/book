@@ -1,5 +1,5 @@
-// Package web is used to grep web title if not provided and handles basic
-// open method
+// Package web provides the small network helpers used when managing
+// bookmarks: fetching a page's title and opening a URL in the system browser.
 package web
 
 import (
@@ -24,7 +24,7 @@ var ErrTitleUnavailable = errors.New("couldn't fetch title")
 func OpenURL(url string) error {
 	switch runtime.GOOS {
 	case "windows":
-		return exec.Command("cmd", "/c", "start", url).Start()
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	case "darwin":
 		return exec.Command("open", url).Start()
 	default:

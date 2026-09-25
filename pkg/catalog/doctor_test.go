@@ -84,18 +84,18 @@ func TestStrayDebris(t *testing.T) {
 }
 
 func TestIndexStaleFiles(t *testing.T) {
-	cfg := testConfig(t)
-	ix, err := OpenIndex(cfg)
+	paths := testPaths(t)
+	ix, err := OpenIndex(paths)
 	if err != nil {
 		t.Fatalf("OpenIndex: %v", err)
 	}
 	defer func() { _ = ix.Close() }()
 
 	s := sampleShelf()
-	writeShelfFile(t, cfg, s)
+	writeShelfFile(t, paths, s)
 
 	// Not yet indexed: the file should be reported stale.
-	stale, err := ix.StaleFiles(cfg)
+	stale, err := ix.StaleFiles(paths)
 	if err != nil {
 		t.Fatalf("StaleFiles before sync: %v", err)
 	}
@@ -104,10 +104,10 @@ func TestIndexStaleFiles(t *testing.T) {
 	}
 
 	// After a sync the index is current.
-	if _, err := ix.Sync(cfg); err != nil {
+	if _, err := ix.Sync(paths); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	stale, err = ix.StaleFiles(cfg)
+	stale, err = ix.StaleFiles(paths)
 	if err != nil {
 		t.Fatalf("StaleFiles after sync: %v", err)
 	}
@@ -118,8 +118,8 @@ func TestIndexStaleFiles(t *testing.T) {
 	// Modifying the file marks it stale again.
 	s.Collections["golang"].Marks = append(s.Collections["golang"].Marks,
 		&book.Mark{ID: book.GenerateID("https://example.com"), Name: "New", URL: "https://example.com"})
-	writeShelfFile(t, cfg, s)
-	stale, err = ix.StaleFiles(cfg)
+	writeShelfFile(t, paths, s)
+	stale, err = ix.StaleFiles(paths)
 	if err != nil {
 		t.Fatalf("StaleFiles after modify: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestIndexStaleFiles(t *testing.T) {
 	if err := os.Remove(s.FilePath); err != nil {
 		t.Fatal(err)
 	}
-	stale, err = ix.StaleFiles(cfg)
+	stale, err = ix.StaleFiles(paths)
 	if err != nil {
 		t.Fatalf("StaleFiles after remove: %v", err)
 	}

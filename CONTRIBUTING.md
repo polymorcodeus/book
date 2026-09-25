@@ -24,14 +24,19 @@ cmd/book/
 ├── spinner.go       # huh spinner wrappers: loadCatalog, loadWebsite
 └── print.go         # printCatalog (marshal + print helper)
 
-internal/book/
-└── types.go         # Core data structs: Config, BookShelves, Shelf, Collection, Mark
+pkg/book/
+├── types.go         # Core data structs: Config, BookShelves, Shelf, Collection, Mark
+├── doctor.go        # MarkConflict, DetectDuplicates, ResolveDuplicates
+└── templates.go     # ViewTemplate, DefaultViewTemplates, Templatable helpers
 
-internal/catalog/
-├── catalog.go       # VerifyExists, LoadShelves
-└── toml.go          # TOML read/write, atomic writes, config creation
+pkg/catalog/
+├── catalog.go       # Paths, ShelfPath, VerifyExists, LoadShelves
+├── toml.go          # TOML read/write, atomic writes, config creation
+├── migrate.go       # MigrateShelfDir, MigrateShelf (schema v1 -> v2)
+├── index.go         # SQLite derived index: OpenIndex, Sync, Rebuild, Search, StaleFiles
+└── doctor.go        # V1ShelfFiles, StrayDebris (filesystem health checks)
 
-internal/web/
+pkg/web/
 └── web.go           # OpenURL, WebsiteTitle
 
 internal/theme/
@@ -47,12 +52,14 @@ internal/model/
 
 | Package | Imports | Does NOT import |
 |---------|---------|-----------------|
-| `internal/book` | stdlib + `toml` | `internal/catalog`, `internal/model`, `internal/theme` |
-| `internal/theme` | `internal/book`, `huh`, `lipgloss`, `json` | `internal/catalog`, `internal/model` |
-| `internal/web` | `goquery` | `internal/book`, `internal/catalog`, `internal/model` |
-| `internal/catalog` | `book`, `toml` | `internal/model`, `internal/theme` |
-| `internal/model` | `book`, `catalog`, `theme`, `web`, `huh`, `lipgloss`, `bubbletea` | — |
+| `pkg/book` | stdlib + `toml` | `pkg/catalog`, `pkg/web`, `internal/*` |
+| `pkg/catalog` | `pkg/book`, `toml`, `modernc.org/sqlite` | `pkg/web`, `internal/*` |
+| `pkg/web` | `goquery` | `pkg/book`, `pkg/catalog`, `internal/*` |
+| `internal/theme` | `pkg/book`, `huh`, `lipgloss`, `json` | `pkg/catalog`, `internal/model` |
+| `internal/model` | `pkg/book`, `pkg/catalog`, `internal/theme`, `pkg/web`, `huh`, `lipgloss`, `bubbletea` | — |
 | `cmd` | everything | — |
+
+The `pkg/` packages are the public library and must stay free of the TUI stack, `urfave/*`, and `internal/*`; `make check-deps` enforces this.
 
 ## Conventions
 
@@ -94,7 +101,7 @@ All styling goes through `internal/theme/theme.go`. Never hardcode colors or lip
 Run the full check before pushing:
 
 ```bash
-make check          # fmt, vet, lint, test
+make check          # fmt, vet, lint, test, check-deps
 ```
 
 Or manually:
@@ -108,19 +115,17 @@ go test ./...
 
 ### Linting
 
-We use `golangci-lint` via `make lint`. Key linters to care about: `errcheck` (explicit `Close()` handling), `govet`, `ineffassign`, `staticcheck`, `unused`.
-
-Note: there is no `.golangci.yml` in the repo yet. If you want to add one, open an issue first.
+We use `golangci-lint` via `make lint`, configured in `.golangci.yml`. Key linters to care about: `errcheck` (explicit `Close()` handling), `govet`, `ineffassign`, `staticcheck`, `unused`.
 
 ### Tests
 
-There are currently **zero tests**. New features or bug fixes **should** include tests where feasible. Priority targets for coverage:
+Unit tests live next to the packages they cover (`pkg/book`, `pkg/catalog`, `pkg/web`, `internal/theme`, `cmd/book`). New features or bug fixes **should** include tests where feasible. Priority targets for coverage:
 
-- `VerifyUniqueURL`, `DedupUnique`, `MergeTags`, `GenerateID` in `internal/book`
-- TOML round-trip encoding/decoding in `internal/catalog`
-- `WebsiteTitle` / `OpenURL` in `internal/web` (mock HTTP server)
+- Pure helpers in `pkg/book` (`VerifyUniqueURL`, `MergeTags`, `GenerateID`, and friends)
+- TOML round-trip encoding/decoding in `pkg/catalog`
+- `WebsiteTitle` / `OpenURL` in `pkg/web` (mock HTTP server)
 
-Prefer table-driven tests. The TUI layer (`internal/model`) is harder to unit test — focus on extracting pure logic into `internal/book` instead.
+Prefer table-driven tests. The TUI layer (`internal/model`) is harder to unit test — focus on extracting pure logic into `pkg/book` instead.
 
 ## Pull Request Process
 
