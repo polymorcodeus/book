@@ -45,8 +45,8 @@ func sampleShelf() *book.Shelf {
 				Name:        "golang",
 				Description: "go links",
 				Marks: []*book.Mark{
-					{ID: book.GenerateID("https://go.dev"), Name: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang", "official"}},
-					{ID: book.GenerateID("https://pkg.go.dev"), Name: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}},
+					{ID: book.GenerateID("https://go.dev"), Title: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang", "official"}},
+					{ID: book.GenerateID("https://pkg.go.dev"), Title: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}},
 				},
 			},
 		},
@@ -181,7 +181,7 @@ func TestSyncIncrementalAndPrune(t *testing.T) {
 	// Add a mark and rewrite: should reindex exactly one file.
 	s := sampleShelf()
 	s.Collections["golang"].Marks = append(s.Collections["golang"].Marks,
-		&book.Mark{ID: book.GenerateID("https://example.com"), Name: "Example", URL: "https://example.com", Tags: []string{"misc"}})
+		&book.Mark{ID: book.GenerateID("https://example.com"), Title: "Example", URL: "https://example.com", Tags: []string{"misc"}})
 	writeShelfFile(t, paths, s)
 
 	report, err = ix.Sync(paths)
@@ -378,8 +378,8 @@ func TestSearchExcludesSoftDeleted(t *testing.T) {
 				ID:   book.GenerateCollectionID("work", "golang"),
 				Name: "golang",
 				Marks: []*book.Mark{
-					{ID: book.GenerateID("https://go.dev"), Name: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
-					{ID: book.GenerateID("https://pkg.go.dev"), Name: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
+					{ID: book.GenerateID("https://go.dev"), Title: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
+					{ID: book.GenerateID("https://pkg.go.dev"), Title: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
 				},
 			},
 		},
@@ -418,8 +418,8 @@ func TestDeletedMarks(t *testing.T) {
 				ID:   book.GenerateCollectionID("work", "golang"),
 				Name: "golang",
 				Marks: []*book.Mark{
-					{ID: book.GenerateID("https://go.dev"), Name: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
-					{ID: book.GenerateID("https://pkg.go.dev"), Name: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
+					{ID: book.GenerateID("https://go.dev"), Title: "The Go Programming Language", URL: "https://go.dev", Tags: []string{"lang"}},
+					{ID: book.GenerateID("https://pkg.go.dev"), Title: "Golang patterns", URL: "https://pkg.go.dev", Tags: []string{"docs"}, DeletedAt: book.NowTimestamp()},
 				},
 			},
 		},

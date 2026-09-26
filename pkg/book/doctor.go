@@ -35,7 +35,7 @@ func (bs *BookShelves) DetectDuplicates() []MarkConflict {
 
 	for i := range *bs {
 		shelf := &(*bs)[i]
-		for _, name := range shelf.CollectionsNames() {
+		for _, name := range shelf.CollectionNames() {
 			c := shelf.Collections[name]
 			for _, m := range c.Marks {
 				id := effectiveID(m)
@@ -107,7 +107,7 @@ func (bs *BookShelves) ResolveDuplicates() (removed int, changed []*Shelf) {
 func marksIdentical(marks []*Mark) bool {
 	first := marks[0]
 	for _, m := range marks[1:] {
-		if m.Name != first.Name || m.URL != first.URL || m.DeletedAt != first.DeletedAt {
+		if m.Title != first.Title || m.URL != first.URL || m.DeletedAt != first.DeletedAt {
 			return false
 		}
 		if !equalTags(m.Tags, first.Tags) {

@@ -17,6 +17,7 @@ func TestWebsiteTitle(t *testing.T) {
 		wantTitle               string
 		wantErr                 bool
 		wantErrTitleUnavailable bool
+		wantErrNotFound         bool
 	}{
 		{
 			name:      "OK with title",
@@ -50,11 +51,12 @@ func TestWebsiteTitle(t *testing.T) {
 			wantErrTitleUnavailable: true,
 		},
 		{
-			name:      "NotFound",
-			status:    http.StatusNotFound,
-			body:      "",
-			wantTitle: "",
-			wantErr:   true,
+			name:            "NotFound",
+			status:          http.StatusNotFound,
+			body:            "",
+			wantTitle:       "",
+			wantErr:         true,
+			wantErrNotFound: true,
 		},
 		{
 			name:      "ServerError",
@@ -85,6 +87,9 @@ func TestWebsiteTitle(t *testing.T) {
 			}
 			if tt.wantErrTitleUnavailable && !errors.Is(gotErr, ErrTitleUnavailable) {
 				t.Errorf("expected ErrTitleUnavailable, got %v", gotErr)
+			}
+			if tt.wantErrNotFound && !errors.Is(gotErr, ErrNotFound) {
+				t.Errorf("expected ErrNotFound, got %v", gotErr)
 			}
 		})
 	}

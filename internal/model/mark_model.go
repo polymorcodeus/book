@@ -25,7 +25,7 @@ type markModel struct {
 
 func (m markModel) verifyCollection() bool {
 	collection := m.book.form.GetString("collection")
-	validCollections := m.shelf.CollectionsNames()
+	validCollections := m.shelf.CollectionNames()
 
 	return slices.Contains(validCollections, collection)
 }
@@ -35,7 +35,7 @@ func (m markModel) verifyMark() bool {
 
 	// Still needed for custom banner title
 	if m.collection != nil {
-		validMarks := m.collection.MarksNames()
+		validMarks := m.collection.MarkNames()
 		return slices.Contains(validMarks, mark)
 	}
 	return false
@@ -199,7 +199,7 @@ func (m getMarkModel) View() tea.View {
 				displayCollection = m.get.collection.Name
 
 				if m.get.verifyMark() {
-					displayMark = m.get.mark.Name + "\n\n" + m.get.mark.URL + "\n\n" + lipglossList(s.None, m.get.mark.Tags) + "\n"
+					displayMark = m.get.mark.Title + "\n\n" + m.get.mark.URL + "\n\n" + lipglossList(s.None, m.get.mark.Tags) + "\n"
 				}
 			}
 		}
@@ -227,6 +227,24 @@ func (m getMarkModel) View() tea.View {
 	return altScreenView(s.Base.Render(header + "\n" + body + "\n\n" + footer))
 }
 
+// markViewData builds the render data for a mark success screen. The parent
+// section (the shelf and collection the mark belongs to) is rendered above the
+// mark itself.
+func markViewData(m *book.Mark) viewData {
+	data := viewData{Primary: m.Title, Secondary: m.URL, List: m.Tags}
+	if m.Shelf != nil || m.Collection != nil {
+		parent := &viewData{}
+		if m.Shelf != nil {
+			parent.Primary = m.Shelf.Name
+		}
+		if m.Collection != nil {
+			parent.Secondary = m.Collection.Name
+		}
+		data.Parent = parent
+	}
+	return data
+}
+
 // ResultView returns the completion output for the caller to print after the
 // program exits.
 func (m getMarkModel) ResultView() string {
@@ -237,11 +255,15 @@ func (m getMarkModel) ResultView() string {
 	t := m.get.book.tmpls
 	switch m.action {
 	case "get":
-		return renderCompletedView(s, t, "mark-get", m.get.mark).Content
+		return renderCompletedView(s, t, "mark-get", markViewData(m.get.mark)).Content
 	case "list":
-		return renderCompletedView(s, t, "mark-list", m.get.collection).Content
+		return renderCompletedView(s, t, "mark-list", viewData{
+			Primary:   m.get.collection.Shelf.Name,
+			Secondary: m.get.collection.Name,
+			List:      m.get.collection.MarkNames(),
+		}).Content
 	case "delete":
-		return renderCompletedView(s, t, "mark-delete", m.get.mark).Content
+		return renderCompletedView(s, t, "mark-delete", markViewData(m.get.mark)).Content
 	}
 	return ""
 }
@@ -311,7 +333,7 @@ func GetMarkForm(bs *book.BookShelves, mark *book.Mark, config *theme.UIConfig, 
 					if collection == nil {
 						return []huh.Option[string]{}
 					}
-					opts := collection.MarksNames()
+					opts := collection.MarkNames()
 					return huh.NewOptions(opts...)
 				}, &chosenCollection).
 				Key("mark").
@@ -425,7 +447,7 @@ func (m editMarkModel) View() tea.View {
 		currentShelf = s.StatusHeader.Render("Picked Shelf") + "\n" + shelf + "\n\n"
 		currentCollection = s.StatusHeader.Render("Picked Collection") + "\n" + m.editor.mark.Collection.Name + "\n\n"
 
-		currentMark = s.StatusHeader.Render("Editing Mark") + "\n" + m.editor.mark.Name
+		currentMark = s.StatusHeader.Render("Editing Mark") + "\n" + m.editor.mark.Title
 		currentMark += "\n\n" + m.editor.mark.URL + "\n\n" + lipglossList(s.None, m.editor.mark.Tags) + "\n"
 
 		status = m.editor.book.statusPanel(form, currentShelf+currentCollection+currentMark, 28)
@@ -455,9 +477,9 @@ func (m editMarkModel) ResultView() string {
 	t := m.editor.book.tmpls
 	switch m.action {
 	case "add":
-		return renderCompletedView(s, t, "mark-add", m.editor.mark).Content
+		return renderCompletedView(s, t, "mark-add", markViewData(m.editor.mark)).Content
 	case "edit":
-		return renderCompletedView(s, t, "mark-edit", m.editor.mark).Content
+		return renderCompletedView(s, t, "mark-edit", markViewData(m.editor.mark)).Content
 	}
 	return ""
 }
@@ -485,7 +507,7 @@ func editMarkForm(bs *book.BookShelves, mark *book.Mark, config *theme.UIConfig,
 			huh.NewText().
 				Title("Review title.").
 				Key("markTitle").
-				Value(&m.mark.Name).
+				Value(&m.mark.Title).
 				WithWidth(25).
 				WithHeight(3),
 

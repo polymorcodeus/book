@@ -132,7 +132,7 @@ func printDoctorReport(r doctorReport) {
 			fmt.Printf("  %s  %s\n", c.ID, c.URL)
 			for _, m := range c.Marks {
 				fmt.Printf("    - %s / %s  title=%q tags=%v deleted=%t\n",
-					m.Shelf.Name, m.Collection.Name, m.Name, m.Tags, m.IsDeleted())
+					m.Shelf.Name, m.Collection.Name, m.Title, m.Tags, m.IsDeleted())
 			}
 		}
 		fmt.Println()

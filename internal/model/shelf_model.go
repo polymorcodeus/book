@@ -111,7 +111,9 @@ func (m getShelfModel) ResultView() string {
 	if m.get.book.form.State != huh.StateCompleted || m.get.book.err != nil || m.action != "list" {
 		return ""
 	}
-	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "shelf-list", m.get.book.shelves).Content
+	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "shelf-list", viewData{
+		List: m.get.book.shelves.ShelfNames(),
+	}).Content
 }
 
 // Error returns the terminal error, if any, for the caller to surface after
@@ -296,7 +298,10 @@ func (m editShelfModel) ResultView() string {
 	if m.editor.book.form.State != huh.StateCompleted || m.editor.book.err != nil {
 		return ""
 	}
-	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "shelf-add", m.editor.collection).Content
+	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "shelf-add", viewData{
+		Primary:   m.editor.collection.Shelf.Name,
+		Secondary: m.editor.collection.Name,
+	}).Content
 }
 
 // Error returns the terminal error, if any, for the caller to surface after

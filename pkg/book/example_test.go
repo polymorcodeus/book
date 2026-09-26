@@ -32,7 +32,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	mark.Name = "The Go Programming Language"
+	mark.Title = "The Go Programming Language"
 	mark.Shelf = shelf
 	mark.Collection = collection
 	mark.RecordAdd()
@@ -55,7 +55,7 @@ func Example() {
 	}
 	got := loaded.Collection("golang").Mark("The Go Programming Language")
 	fmt.Println(loaded.Name)
-	fmt.Println(got.Name)
+	fmt.Println(got.Title)
 	fmt.Println(got.URL)
 	fmt.Println(got.Tags)
 

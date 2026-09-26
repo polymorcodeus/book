@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -16,6 +17,19 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+)
+
+// Sentinel errors returned by the pure domain helpers. Callers match them with
+// errors.Is and render their own remediation text; the domain package never
+// references CLI flags or command names.
+var (
+	// ErrDuplicateURL reports that a mark with the same catalog ID already exists.
+	ErrDuplicateURL = errors.New("book: duplicate url")
+	// ErrURLTrashed reports that a mark with the same catalog ID was soft-deleted.
+	ErrURLTrashed = errors.New("book: url already trashed")
+	// ErrTitleRequired reports that a title could not be resolved automatically
+	// and the caller must supply one.
+	ErrTitleRequired = errors.New("book: title required")
 )
 
 // TOMLFile defines exportable TOML files
@@ -27,21 +41,21 @@ type TOMLFile interface {
 type Config struct {
 	CatalogFormat string `toml:"catalog_format"`
 	ShelfRoot     string `toml:"shelf_directory"`
-	Autoconfirm   bool   `toml:"autoconfirm"`   // edit to bypass --confirm for non-interactive adds
-	Interactive   bool   `toml:"interactive"`   // edit to bypass TUI - false by default
+	Autoconfirm   bool   `toml:"autoconfirm"`   // bypass --confirm for non-interactive writes
+	Interactive   bool   `toml:"interactive"`   // true enables the TUI; false by default
 	ConfigFile    string `toml:"-"`             // path to config file, typical BOOK_CONFIG
 	ThemeFile     string `toml:"theme_file"`    // path to theme file, typical BOOK_THEME
-	TemplateFile  string `toml:"template_file"` // path to theme file, typical BOOK_TEMPLATE
+	TemplateFile  string `toml:"template_file"` // path to template file, typical BOOK_TEMPLATE
 }
 
 // FileConfig holds externally writable application configuration settings
 type FileConfig struct {
 	CatalogFormat string `toml:"catalog_format"`
 	ShelfRoot     string `toml:"shelf_directory"`
-	Autoconfirm   *bool  `toml:"autoconfirm"`   // edit to bypass --confirm for non-interactive adds
-	Interactive   *bool  `toml:"interactive"`   // edit to bypass TUI - false by default
+	Autoconfirm   *bool  `toml:"autoconfirm"`   // bypass --confirm for non-interactive writes
+	Interactive   *bool  `toml:"interactive"`   // true enables the TUI; false by default
 	ThemeFile     string `toml:"theme_file"`    // path to theme file, typical BOOK_THEME
-	TemplateFile  string `toml:"template_file"` // path to theme file, typical BOOK_TEMPLATE
+	TemplateFile  string `toml:"template_file"` // path to template file, typical BOOK_TEMPLATE
 	ConfigFile    string `toml:"-"`             // path to config file, typical BOOK_CONFIG
 }
 
@@ -96,8 +110,9 @@ func (bs *BookShelves) LoadParents() {
 }
 
 // VerifyUniqueURL returns an error if the given ID already exists in any mark
-// other than exclude. A collision with a soft-deleted mark points at
-// `book mark restore` rather than re-adding the URL.
+// other than exclude. A collision with a soft-deleted mark wraps
+// ErrURLTrashed; an active collision wraps ErrDuplicateURL. Callers render any
+// remediation text (for example how to restore a trashed mark).
 func (bs *BookShelves) VerifyUniqueURL(id string, exclude *Mark) error {
 	for _, b := range *bs {
 		for _, c := range b.Collections {
@@ -106,10 +121,9 @@ func (bs *BookShelves) VerifyUniqueURL(id string, exclude *Mark) error {
 					continue
 				}
 				if m.IsDeleted() {
-					return fmt.Errorf("url already trashed\n\n%s\n\nrestore it with:\nbook mark restore --shelf %s --collection %s --url %s",
-						m.FullDetail(), m.Shelf.Name, m.Collection.Name, m.URL)
+					return fmt.Errorf("%w: %s", ErrURLTrashed, m.FullDetail())
 				}
-				return fmt.Errorf("duplicate url found\n\n%s", m.FullDetail())
+				return fmt.Errorf("%w: %s", ErrDuplicateURL, m.FullDetail())
 			}
 		}
 	}
@@ -127,14 +141,17 @@ func (bs *BookShelves) PurgeDeletedMarks(cutoff time.Time) int {
 }
 
 // SoftDeletedByID returns the soft-deleted mark whose ID matches, or nil. IDs
-// are globally unique, so no shelf or collection scoping is needed. The
-// returned mark retains its Shelf and Collection back-pointers after
-// LoadParents.
+// are globally unique, so no shelf or collection scoping is needed. Like the
+// other finders, the returned mark has its Shelf and Collection back-pointers
+// wired.
 func (bs *BookShelves) SoftDeletedByID(id string) *Mark {
 	for i := range *bs {
-		for _, c := range (*bs)[i].Collections {
+		shelf := &(*bs)[i]
+		for _, c := range shelf.Collections {
 			for _, m := range c.Marks {
 				if m.ID == id && m.IsDeleted() {
+					m.Shelf = shelf
+					m.Collection = c
 					return m
 				}
 			}
@@ -195,8 +212,8 @@ func (s *Shelf) PurgeDeletedMarks(cutoff time.Time) int {
 	return total
 }
 
-// CollectionsNames returns the names of all collections in the shelf, sorted.
-func (s *Shelf) CollectionsNames() []string {
+// CollectionNames returns the names of all collections in the shelf, sorted.
+func (s *Shelf) CollectionNames() []string {
 	names := make([]string, 0, len(s.Collections))
 	for name := range s.Collections {
 		names = append(names, name)
@@ -216,14 +233,14 @@ type Collection struct {
 	Marks       []*Mark `toml:"marks" json:"marks"`
 }
 
-// MarksNames returns the names of all non-deleted marks in the collection.
-func (c *Collection) MarksNames() []string {
+// MarkNames returns the titles of all non-deleted marks in the collection.
+func (c *Collection) MarkNames() []string {
 	markNames := make([]string, 0, len(c.Marks))
 	for _, m := range c.Marks {
 		if m.IsDeleted() {
 			continue
 		}
-		markNames = append(markNames, m.Name)
+		markNames = append(markNames, m.Title)
 	}
 	return markNames
 }
@@ -251,10 +268,10 @@ func (c *Collection) AllTags() []string {
 	return tags
 }
 
-// Mark returns a non-deleted mark by name from the collection.
+// Mark returns a non-deleted mark by title from the collection.
 func (c *Collection) Mark(m string) *Mark {
 	for _, n := range c.Marks {
-		if n.Name == m && !n.IsDeleted() {
+		if n.Title == m && !n.IsDeleted() {
 			return n
 		}
 	}
@@ -320,7 +337,7 @@ type Mark struct {
 	Collection *Collection `toml:"-" json:"-"`
 
 	ID        string   `toml:"catalog_id" json:"catalog_id"`
-	Name      string   `toml:"title" json:"title"`
+	Title     string   `toml:"title" json:"title"`
 	URL       string   `toml:"url" json:"url"`
 	Tags      []string `toml:"tags" json:"tags"`
 	CreatedAt string   `toml:"created_at,omitempty" json:"created_at,omitempty"`
@@ -330,7 +347,7 @@ type Mark struct {
 
 // Description returns a human-readable summary of the mark.
 func (m *Mark) Description() string {
-	return fmt.Sprintf("Title: %s\nURL: %s\nTags: %s", m.Name, m.URL, strings.Join(m.Tags, ","))
+	return fmt.Sprintf("Title: %s\nURL: %s\nTags: %s", m.Title, m.URL, strings.Join(m.Tags, ","))
 }
 
 // IsDeleted reports whether the mark has been soft-deleted.
@@ -367,9 +384,18 @@ func (m *Mark) RecordDelete() {
 	m.Touch()
 }
 
-// FullDetail returns a verbose summary including shelf, collection, title, URL, and tags.
+// FullDetail returns a verbose summary including shelf, collection, title, URL,
+// and tags. Missing back-pointers (an unwired mark) render as empty fields
+// rather than panicking.
 func (m *Mark) FullDetail() string {
-	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", m.Shelf.Name, m.Collection.Name, m.Name, m.URL, strings.Join(m.Tags, ","))
+	shelfName, collectionName := "", ""
+	if m.Shelf != nil {
+		shelfName = m.Shelf.Name
+	}
+	if m.Collection != nil {
+		collectionName = m.Collection.Name
+	}
+	return fmt.Sprintf("Shelf: %s\nCollection: %s\nTitle: %s\nURL: %s\nTags: %s", shelfName, collectionName, m.Title, m.URL, strings.Join(m.Tags, ","))
 }
 
 // dedupUnique concatenates and deduplicates multiple slices while preserving first-seen order.
@@ -410,8 +436,8 @@ func NowTimestamp() string {
 }
 
 // MergeTags combines multiple tag slices, deduplicates, removes empty strings,
-// and returns a sorted slice. Order of arguments determines priority (earlier
-// slices' items appear first in result).
+// and preserves first-seen order: earlier slices' items appear first and no
+// sorting is performed.
 func MergeTags(sources ...[]string) []string {
 	merged := dedupUnique(sources...)
 	return slices.DeleteFunc(merged, func(e string) bool { return e == "" })
@@ -468,7 +494,7 @@ type TitleFetchResult struct {
 // ResolveMarkTitle selects the title for a new mark. A caller-provided title
 // always wins. When fetching is unavailable, interactive callers receive an
 // empty string (so the TUI can prompt later), while non-interactive callers
-// receive an error asking them to provide --title.
+// receive an error wrapping ErrTitleRequired.
 func ResolveMarkTitle(providedTitle, url string, fetched TitleFetchResult, interactive bool) (string, error) {
 	if providedTitle != "" {
 		return providedTitle, nil
@@ -477,15 +503,45 @@ func ResolveMarkTitle(providedTitle, url string, fetched TitleFetchResult, inter
 		if interactive {
 			return "", nil
 		}
-		return "", fmt.Errorf("couldn't fetch title for %s; provide --title", url)
+		return "", fmt.Errorf("%w for %s", ErrTitleRequired, url)
 	}
 	return fetched.Title, nil
 }
 
-// ValidateNewShelfName returns an error if name is empty or already in use.
-func (bs *BookShelves) ValidateNewShelfName(name string) error {
-	if name == "" {
+// invalidShelfNameChars are characters that cannot appear in a shelf name: the
+// path separators (which would make the name produce a nested file path) plus
+// the set that is invalid in a Windows file name.
+const invalidShelfNameChars = `/\:*?"<>|`
+
+// validateShelfName returns an error when name cannot safely be used as a shelf
+// name. The name must contain visible characters with no leading or trailing
+// whitespace (ShelfPath trims and underscorifies names, so padded names would
+// collide with their trimmed form on disk), must not be a parent-directory
+// token, and must not contain path separators, control characters, or
+// characters reserved by the file system.
+func validateShelfName(name string) error {
+	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("shelf name is required")
+	}
+	if name != strings.TrimSpace(name) {
+		return fmt.Errorf("shelf name %q has leading or trailing whitespace", name)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("shelf name %q is not allowed", name)
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f || strings.ContainsRune(invalidShelfNameChars, r) {
+			return fmt.Errorf("shelf name %q contains invalid characters", name)
+		}
+	}
+	return nil
+}
+
+// ValidateNewShelfName returns an error if name is empty, contains invalid
+// characters, or is already in use.
+func (bs *BookShelves) ValidateNewShelfName(name string) error {
+	if err := validateShelfName(name); err != nil {
+		return err
 	}
 	if slices.Contains(bs.ShelfNames(), name) {
 		return fmt.Errorf("shelf already exists")
@@ -531,7 +587,8 @@ func ParseTagFilter(input string) ([][]string, error) {
 	return result, nil
 }
 
-// MarshalCatalog serializes an item as JSON or TOML.
+// MarshalCatalog serializes an item as JSON or TOML. An unknown format is an
+// error.
 func MarshalCatalog[T any](item T, format string) ([]byte, error) {
 	switch format {
 	case "json":
@@ -543,13 +600,14 @@ func MarshalCatalog[T any](item T, format string) ([]byte, error) {
 		}
 		return buf.Bytes(), nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("unknown format %q", format)
 }
 
-// NewShelf creates a new v2 shelf with the given name and description.
+// NewShelf creates a new v2 shelf with the given name and description. The name
+// is validated for emptiness and unsafe characters.
 func NewShelf(name, description string) (*Shelf, error) {
-	if name == "" {
-		return nil, fmt.Errorf("shelf name is required")
+	if err := validateShelfName(name); err != nil {
+		return nil, err
 	}
 	now := NowTimestamp()
 	return &Shelf{
@@ -605,7 +663,8 @@ func (s *Shelf) RemoveCollection(name string) error {
 }
 
 // FindMarkByID returns the first mark matching id across all shelves and
-// collections, or nil if none is found.
+// collections, or nil if none is found. The returned mark has its Shelf and
+// Collection back-pointers wired.
 func (bs *BookShelves) FindMarkByID(id string) *Mark {
 	for i := range *bs {
 		shelf := &(*bs)[i]
@@ -623,7 +682,8 @@ func (bs *BookShelves) FindMarkByID(id string) *Mark {
 }
 
 // FindMarkByURL returns the first non-deleted mark matching url across all
-// shelves and collections, or nil if none is found.
+// shelves and collections, or nil if none is found. The returned mark has its
+// Shelf and Collection back-pointers wired.
 func (bs *BookShelves) FindMarkByURL(url string) *Mark {
 	for i := range *bs {
 		shelf := &(*bs)[i]
@@ -640,11 +700,11 @@ func (bs *BookShelves) FindMarkByURL(url string) *Mark {
 	return nil
 }
 
-// UpdateMark applies edits to a mark. Empty strings leave title and url
+// Update applies edits to a mark. Empty strings leave title and url
 // unchanged; a nil tags slice leaves tags unchanged, while an empty (non-nil)
 // slice clears them. If url is provided it is validated and the mark's catalog
 // ID is regenerated.
-func (m *Mark) UpdateMark(title, url string, tags []string) error {
+func (m *Mark) Update(title, url string, tags []string) error {
 	if url != "" {
 		if err := ValidateURL(url); err != nil {
 			return err
@@ -653,7 +713,7 @@ func (m *Mark) UpdateMark(title, url string, tags []string) error {
 		m.ID = GenerateID(url)
 	}
 	if title != "" {
-		m.Name = title
+		m.Title = title
 	}
 	if tags != nil {
 		m.Tags = tags

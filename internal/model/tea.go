@@ -225,37 +225,51 @@ func lipglossList(gloss lipgloss.Style, l []string) string {
 	return strings.Join(parts, "\n")
 }
 
-func renderCompletedView(s *Styles, tmpls map[string]book.ViewTemplate, key string, entity book.Templatable) tea.View {
+// viewData is the presentation data a completed TUI screen renders. Each screen
+// builds it from the domain entities it already holds, so the renderer stays a
+// dumb formatter and the meaning of each field is decided per screen rather
+// than by a shared interface on the domain types.
+type viewData struct {
+	Primary   string
+	Secondary string
+	List      []string
+	// Parent, when set, is rendered above the main section with the
+	// "mark-parent" template (the shelf and collection a mark belongs to) and
+	// is followed by a blank line separating it from the main section.
+	Parent *viewData
+}
+
+func renderCompletedView(s *Styles, tmpls map[string]book.ViewTemplate, key string, data viewData) tea.View {
 	tmpl := tmpls[key]
 
 	var b strings.Builder
-	if strings.HasPrefix(key, "mark-") {
-		if mark, ok := entity.(*book.Mark); ok {
-			fmt.Fprintf(&b, "%s", renderView(s, tmpls["mark-parent"], mark.Collection))
+	if data.Parent != nil {
+		if parent := renderView(s, tmpls["mark-parent"], *data.Parent); parent != "" {
+			fmt.Fprintf(&b, "%s\n\n", parent)
 		}
 	}
-	fmt.Fprintf(&b, "%s", renderView(s, tmpl, entity))
+	fmt.Fprintf(&b, "%s", renderView(s, tmpl, data))
 
 	return tea.NewView(s.StatusBox.Render(b.String()) + "\n")
 }
 
-func renderView(styles *Styles, tmpl book.ViewTemplate, entity book.Templatable) string {
+func renderView(styles *Styles, tmpl book.ViewTemplate, data viewData) string {
 	var b strings.Builder
 
-	if tmpl.PrimaryTitle != "" && entity.Primary() != "" {
-		fmt.Fprintf(&b, "%s\n%s\n\n", tmpl.PrimaryTitle, styles.Primary.Render(entity.Primary()))
+	if tmpl.PrimaryTitle != "" && data.Primary != "" {
+		fmt.Fprintf(&b, "%s\n%s\n\n", tmpl.PrimaryTitle, styles.Primary.Render(data.Primary))
 	}
-	if tmpl.SecondaryTitle != "" && entity.Secondary() != "" {
-		fmt.Fprintf(&b, "%s\n%s", tmpl.SecondaryTitle, styles.Primary.Render(entity.Secondary()))
+	if tmpl.SecondaryTitle != "" && data.Secondary != "" {
+		fmt.Fprintf(&b, "%s\n%s", tmpl.SecondaryTitle, styles.Primary.Render(data.Secondary))
 	}
 
 	// needed for mark rendering
-	if entity.Secondary() != "" && len(entity.List()) > 0 {
+	if data.Secondary != "" && len(data.List) > 0 {
 		fmt.Fprintf(&b, "\n\n")
 	}
 
-	if tmpl.ListTitle != "" && len(entity.List()) > 0 {
-		fmt.Fprintf(&b, "%s\n%s", tmpl.ListTitle, lipglossList(styles.Primary, entity.List()))
+	if tmpl.ListTitle != "" && len(data.List) > 0 {
+		fmt.Fprintf(&b, "%s\n%s", tmpl.ListTitle, lipglossList(styles.Primary, data.List))
 	}
 
 	return b.String()

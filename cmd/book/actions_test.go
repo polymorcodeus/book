@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/polymorcodeus/book/internal/theme"
 	"github.com/polymorcodeus/book/pkg/book"
 	"github.com/polymorcodeus/book/pkg/catalog"
+	"github.com/polymorcodeus/book/pkg/web"
 )
 
 func testConfig(t *testing.T) *theme.UIConfig {
@@ -181,8 +184,8 @@ func TestAddMark(t *testing.T) {
 		t.Fatalf("got %d marks, want 1", len(collection.Marks))
 	}
 	mark := collection.Marks[0]
-	if mark.Name != "Example" {
-		t.Errorf("Name = %q, want Example", mark.Name)
+	if mark.Title != "Example" {
+		t.Errorf("Title = %q, want Example", mark.Title)
 	}
 	if !strings.EqualFold(strings.Join(mark.Tags, ","), "go,cli") {
 		t.Errorf("Tags = %v, want [go cli]", mark.Tags)
@@ -239,8 +242,8 @@ func TestEditMark(t *testing.T) {
 
 	reloaded := loadShelves(t, config)
 	updated := testShelf(t, reloaded, "dev").Collection("docs").Marks[0]
-	if updated.Name != "Updated" {
-		t.Errorf("Name = %q, want Updated", updated.Name)
+	if updated.Title != "Updated" {
+		t.Errorf("Title = %q, want Updated", updated.Title)
 	}
 	if !strings.EqualFold(strings.Join(updated.Tags, ","), "go,cli") {
 		t.Errorf("Tags = %v, want [go cli]", updated.Tags)
@@ -322,5 +325,73 @@ func TestRequireFlags(t *testing.T) {
 		if !strings.Contains(msg, "--shelf") || !strings.Contains(msg, "--name") {
 			t.Errorf("error message missing flags: %v", err)
 		}
+	}
+}
+
+func TestWebsiteError(t *testing.T) {
+	notFound := websiteError(fmt.Errorf("fetch title: %w: %s", web.ErrNotFound, "https://example.com"), "https://example.com")
+	if !strings.Contains(notFound.Error(), "4oh4") {
+		t.Errorf("websiteError(ErrNotFound) = %q, want the 4oh4 quip", notFound)
+	}
+	if !strings.Contains(notFound.Error(), "https://example.com") {
+		t.Errorf("websiteError(ErrNotFound) = %q, want the url", notFound)
+	}
+
+	other := websiteError(errors.New("connection refused"), "https://example.com")
+	if strings.Contains(other.Error(), "4oh4") {
+		t.Errorf("websiteError(other) = %q, want a plain wrapped error", other)
+	}
+	if !strings.Contains(other.Error(), "load website:") {
+		t.Errorf("websiteError(other) = %q, want the load website context", other)
+	}
+}
+
+func TestUniqueURLError(t *testing.T) {
+	trashed := &book.Mark{ID: "abc12345", Title: "gone", URL: "https://example.com/trashed", DeletedAt: book.NowTimestamp()}
+	active := &book.Mark{ID: "def67890", Title: "here", URL: "https://example.com/active"}
+	bs := book.BookShelves{{
+		Name: "dev",
+		Collections: map[string]*book.Collection{
+			"docs": {Name: "docs", Marks: []*book.Mark{trashed, active}},
+		},
+	}}
+
+	trashedErr := bs.VerifyUniqueURL("abc12345", nil)
+	if trashedErr == nil {
+		t.Fatal("VerifyUniqueURL(trashed) expected error")
+	}
+	got := uniqueURLError(&bs, "abc12345", trashedErr)
+	if !strings.Contains(got.Error(), "book mark restore --id abc12345") {
+		t.Errorf("uniqueURLError(trashed) = %q, want the restore command with id", got)
+	}
+	if !errors.Is(got, book.ErrURLTrashed) {
+		t.Errorf("uniqueURLError(trashed) lost the ErrURLTrashed chain: %v", got)
+	}
+
+	dupErr := bs.VerifyUniqueURL("def67890", nil)
+	if dupErr == nil {
+		t.Fatal("VerifyUniqueURL(active) expected error")
+	}
+	got = uniqueURLError(&bs, "def67890", dupErr)
+	if strings.Contains(got.Error(), "restore") {
+		t.Errorf("uniqueURLError(active) = %q, want no restore hint", got)
+	}
+	if !errors.Is(got, book.ErrDuplicateURL) {
+		t.Errorf("uniqueURLError(active) lost the ErrDuplicateURL chain: %v", got)
+	}
+}
+
+func TestTitleError(t *testing.T) {
+	required := titleError(fmt.Errorf("%w for %s", book.ErrTitleRequired, "https://example.com"))
+	if !strings.Contains(required.Error(), "--title") {
+		t.Errorf("titleError(ErrTitleRequired) = %q, want the --title hint", required)
+	}
+	if !errors.Is(required, book.ErrTitleRequired) {
+		t.Errorf("titleError(ErrTitleRequired) lost the chain: %v", required)
+	}
+
+	other := errors.New("boom")
+	if got := titleError(other); got.Error() != "boom" {
+		t.Errorf("titleError(other) = %q, want the error unchanged", got)
 	}
 }

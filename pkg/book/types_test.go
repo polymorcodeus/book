@@ -1,6 +1,7 @@
 package book
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -68,8 +69,8 @@ func TestVerifyUniqueURL(t *testing.T) {
 				"col-1": {
 					Name: "col-1",
 					Marks: []*Mark{
-						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
-						{ID: "aabbccdd", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
+						{ID: "abc12345", Title: "first", URL: "https://example.com/first"},
+						{ID: "aabbccdd", Title: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
 					},
 				},
 			},
@@ -80,7 +81,7 @@ func TestVerifyUniqueURL(t *testing.T) {
 				"col-2": {
 					Name: "col-2",
 					Marks: []*Mark{
-						{ID: "def67890", Name: "second", URL: "https://example.com/second"},
+						{ID: "def67890", Title: "second", URL: "https://example.com/second"},
 					},
 				},
 			},
@@ -89,10 +90,10 @@ func TestVerifyUniqueURL(t *testing.T) {
 	bs.LoadParents()
 
 	tests := []struct {
-		name        string
-		id          string
-		wantErr     bool
-		wantRestore bool
+		name         string
+		id           string
+		wantErr      bool
+		wantSentinel error
 	}{
 		{
 			name:    "unique id passes",
@@ -100,20 +101,22 @@ func TestVerifyUniqueURL(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "duplicate in first shelf",
-			id:      "abc12345",
-			wantErr: true,
+			name:         "duplicate in first shelf",
+			id:           "abc12345",
+			wantErr:      true,
+			wantSentinel: ErrDuplicateURL,
 		},
 		{
-			name:    "duplicate in second shelf",
-			id:      "def67890",
-			wantErr: true,
+			name:         "duplicate in second shelf",
+			id:           "def67890",
+			wantErr:      true,
+			wantSentinel: ErrDuplicateURL,
 		},
 		{
-			name:        "trashed collision suggests restore",
-			id:          "aabbccdd",
-			wantErr:     true,
-			wantRestore: true,
+			name:         "trashed collision",
+			id:           "aabbccdd",
+			wantErr:      true,
+			wantSentinel: ErrURLTrashed,
 		},
 	}
 
@@ -126,8 +129,8 @@ func TestVerifyUniqueURL(t *testing.T) {
 			if !tt.wantErr && err != nil {
 				t.Errorf("VerifyUniqueURL(%q) unexpected error: %v", tt.id, err)
 			}
-			if tt.wantRestore && (err == nil || !strings.Contains(err.Error(), "restore")) {
-				t.Errorf("VerifyUniqueURL(%q) error = %v, want restore hint", tt.id, err)
+			if tt.wantSentinel != nil && !errors.Is(err, tt.wantSentinel) {
+				t.Errorf("VerifyUniqueURL(%q) error = %v, want %v", tt.id, err, tt.wantSentinel)
 			}
 		})
 	}
@@ -167,8 +170,8 @@ func TestAllTags(t *testing.T) {
 }
 
 func TestDeleteMark(t *testing.T) {
-	markA := &Mark{Name: "a"}
-	markB := &Mark{Name: "b"}
+	markA := &Mark{Title: "a"}
+	markB := &Mark{Title: "b"}
 
 	col := &Collection{Marks: []*Mark{markA, markB}}
 	col.DeleteMark(markB)
@@ -209,23 +212,23 @@ func TestIsDeleted(t *testing.T) {
 	}
 }
 
-func TestMarksNamesExcludesDeleted(t *testing.T) {
+func TestMarkNamesExcludesDeleted(t *testing.T) {
 	col := &Collection{Marks: []*Mark{
-		{Name: "a"},
-		{Name: "b", DeletedAt: "x"},
-		{Name: "c"},
+		{Title: "a"},
+		{Title: "b", DeletedAt: "x"},
+		{Title: "c"},
 	}}
 	want := []string{"a", "c"}
-	got := col.MarksNames()
+	got := col.MarkNames()
 	if !slices.Equal(got, want) {
-		t.Errorf("MarksNames() = %v, want %v", got, want)
+		t.Errorf("MarkNames() = %v, want %v", got, want)
 	}
 }
 
 func TestMarkSkipsDeleted(t *testing.T) {
 	col := &Collection{Marks: []*Mark{
-		{Name: "a", DeletedAt: "x"},
-		{Name: "a"},
+		{Title: "a", DeletedAt: "x"},
+		{Title: "a"},
 	}}
 	got := col.Mark("a")
 	if got == nil || got.DeletedAt != "" {
@@ -262,17 +265,17 @@ func TestPurgeDeletedMarks(t *testing.T) {
 		{
 			name: "purges only old soft-deleted marks",
 			col: &Collection{Marks: []*Mark{
-				{Name: "active"},
-				{Name: "old", DeletedAt: old},
-				{Name: "recent", DeletedAt: recent},
-				{Name: "bad", DeletedAt: "not-a-timestamp"},
+				{Title: "active"},
+				{Title: "old", DeletedAt: old},
+				{Title: "recent", DeletedAt: recent},
+				{Title: "bad", DeletedAt: "not-a-timestamp"},
 			}},
 			want: 1,
 		},
 		{
 			name: "no soft-deleted marks",
 			col: &Collection{Marks: []*Mark{
-				{Name: "active"},
+				{Title: "active"},
 			}},
 			want: 0,
 		},
@@ -289,15 +292,15 @@ func TestPurgeDeletedMarks(t *testing.T) {
 
 	// Verify the first case retains the right marks.
 	col := &Collection{Marks: []*Mark{
-		{Name: "active"},
-		{Name: "old", DeletedAt: old},
-		{Name: "recent", DeletedAt: recent},
-		{Name: "bad", DeletedAt: "not-a-timestamp"},
+		{Title: "active"},
+		{Title: "old", DeletedAt: old},
+		{Title: "recent", DeletedAt: recent},
+		{Title: "bad", DeletedAt: "not-a-timestamp"},
 	}}
 	col.PurgeDeletedMarks(cutoff)
 	var remaining []string
 	for _, m := range col.Marks {
-		remaining = append(remaining, m.Name)
+		remaining = append(remaining, m.Title)
 	}
 	want := []string{"active", "recent", "bad"}
 	if !slices.Equal(remaining, want) {
@@ -313,15 +316,15 @@ func TestSoftDeletedByID(t *testing.T) {
 				"col-1": {
 					Name: "col-1",
 					Marks: []*Mark{
-						{ID: "abc12345", Name: "active", URL: "https://example.com"},
-						{ID: "aabbccdd", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
+						{ID: "abc12345", Title: "active", URL: "https://example.com"},
+						{ID: "aabbccdd", Title: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
 					},
 				},
 			},
 		},
 	}
 
-	if got := bs.SoftDeletedByID("aabbccdd"); got == nil || got.Name != "trashed" {
+	if got := bs.SoftDeletedByID("aabbccdd"); got == nil || got.Title != "trashed" {
 		t.Errorf("SoftDeletedByID(trashed) = %+v, want trashed mark", got)
 	}
 	if got := bs.SoftDeletedByID("abc12345"); got != nil {
@@ -618,14 +621,45 @@ func TestValidateNewShelfName(t *testing.T) {
 	if err := bs.ValidateNewShelfName(""); err == nil {
 		t.Error("ValidateNewShelfName(\"\") expected error")
 	}
+	if err := bs.ValidateNewShelfName("   "); err == nil {
+		t.Error("ValidateNewShelfName(whitespace) expected error")
+	}
 	if err := bs.ValidateNewShelfName("existing"); err == nil {
 		t.Error("ValidateNewShelfName(\"existing\") expected error")
+	}
+
+	invalid := []string{
+		"../escape",
+		"nested/name",
+		`back\slash`,
+		".",
+		"..",
+		"colon:name",
+		"star*name",
+		"line\nbreak",
+		" padded",
+		"padded ",
+		"padded\n",
+	}
+	for _, name := range invalid {
+		if err := bs.ValidateNewShelfName(name); err == nil {
+			t.Errorf("ValidateNewShelfName(%q) expected error", name)
+		}
 	}
 }
 
 func TestNewShelf(t *testing.T) {
 	if _, err := NewShelf("", ""); err == nil {
 		t.Error("NewShelf with empty name expected error")
+	}
+	if _, err := NewShelf("../escape", ""); err == nil {
+		t.Error("NewShelf with path separator expected error")
+	}
+	if _, err := NewShelf("..", ""); err == nil {
+		t.Error("NewShelf with parent token expected error")
+	}
+	if _, err := NewShelf(" padded", ""); err == nil {
+		t.Error("NewShelf with leading whitespace expected error")
 	}
 
 	s, err := NewShelf("test-shelf", "a description")
@@ -726,7 +760,7 @@ func TestBookShelvesFindMarkByID(t *testing.T) {
 				"col-1": {
 					Name: "col-1",
 					Marks: []*Mark{
-						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
+						{ID: "abc12345", Title: "first", URL: "https://example.com/first"},
 					},
 				},
 			},
@@ -737,8 +771,8 @@ func TestBookShelvesFindMarkByID(t *testing.T) {
 	if got == nil {
 		t.Fatal("FindMarkByID expected match")
 	}
-	if got.Name != "first" {
-		t.Errorf("FindMarkByID Name = %q, want %q", got.Name, "first")
+	if got.Title != "first" {
+		t.Errorf("FindMarkByID Title = %q, want %q", got.Title, "first")
 	}
 	if got.Shelf == nil || got.Shelf.Name != "shelf-a" {
 		t.Error("FindMarkByID did not set Shelf back-pointer")
@@ -752,19 +786,19 @@ func TestBookShelvesFindMarkByID(t *testing.T) {
 	}
 }
 
-func TestMarkUpdateMark(t *testing.T) {
+func TestMarkUpdate(t *testing.T) {
 	m := &Mark{
-		ID:   GenerateID("https://example.com/old"),
-		Name: "Old",
-		URL:  "https://example.com/old",
-		Tags: []string{"a"},
+		ID:    GenerateID("https://example.com/old"),
+		Title: "Old",
+		URL:   "https://example.com/old",
+		Tags:  []string{"a"},
 	}
 
-	if err := m.UpdateMark("New", "", []string{"b", "c"}); err != nil {
+	if err := m.Update("New", "", []string{"b", "c"}); err != nil {
 		t.Fatalf("UpdateMark error: %v", err)
 	}
-	if m.Name != "New" {
-		t.Errorf("Name = %q, want %q", m.Name, "New")
+	if m.Title != "New" {
+		t.Errorf("Title = %q, want %q", m.Title, "New")
 	}
 	if !slices.Equal(m.Tags, []string{"b", "c"}) {
 		t.Errorf("Tags = %v, want %v", m.Tags, []string{"b", "c"})
@@ -773,11 +807,11 @@ func TestMarkUpdateMark(t *testing.T) {
 		t.Errorf("URL = %q, want unchanged", m.URL)
 	}
 
-	if err := m.UpdateMark("", "not-a-url", nil); err == nil {
+	if err := m.Update("", "not-a-url", nil); err == nil {
 		t.Error("UpdateMark with invalid URL expected error")
 	}
 
-	if err := m.UpdateMark("", "https://example.com/new", nil); err != nil {
+	if err := m.Update("", "https://example.com/new", nil); err != nil {
 		t.Fatalf("UpdateMark URL change error: %v", err)
 	}
 	if m.URL != "https://example.com/new" {
@@ -796,8 +830,8 @@ func TestBookShelvesFindMarkByURL(t *testing.T) {
 				"col-1": {
 					Name: "col-1",
 					Marks: []*Mark{
-						{ID: "abc12345", Name: "first", URL: "https://example.com/first"},
-						{ID: "deadbeef", Name: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
+						{ID: "abc12345", Title: "first", URL: "https://example.com/first"},
+						{ID: "deadbeef", Title: "trashed", URL: "https://example.com/trashed", DeletedAt: "2026-08-01T00:00:00Z"},
 					},
 				},
 			},
@@ -809,8 +843,8 @@ func TestBookShelvesFindMarkByURL(t *testing.T) {
 	if got == nil {
 		t.Fatal("FindMarkByURL expected match")
 	}
-	if got.Name != "first" {
-		t.Errorf("Name = %q, want %q", got.Name, "first")
+	if got.Title != "first" {
+		t.Errorf("Name = %q, want %q", got.Title, "first")
 	}
 	if got.Shelf == nil || got.Shelf.Name != "shelf-a" {
 		t.Error("FindMarkByURL did not set Shelf back-pointer")
@@ -827,7 +861,7 @@ func TestBookShelvesFindMarkByURL(t *testing.T) {
 func TestMarkTouch(t *testing.T) {
 	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2), UpdatedAt: "old"}
 	collection := &Collection{Name: "col-1", Shelf: shelf, UpdatedAt: "old"}
-	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+	mark := &Mark{Title: "mark", Shelf: shelf, Collection: collection}
 
 	mark.Touch()
 
@@ -845,7 +879,7 @@ func TestMarkTouch(t *testing.T) {
 func TestMarkRecordAdd(t *testing.T) {
 	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2)}
 	collection := &Collection{Name: "col-1", Shelf: shelf}
-	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+	mark := &Mark{Title: "mark", Shelf: shelf, Collection: collection}
 
 	mark.RecordAdd()
 
@@ -863,7 +897,7 @@ func TestMarkRecordAdd(t *testing.T) {
 func TestMarkRecordDelete(t *testing.T) {
 	shelf := &Shelf{Name: "shelf-a", SchemaVersion: new(2)}
 	collection := &Collection{Name: "col-1", Shelf: shelf, Marks: make([]*Mark, 0)}
-	mark := &Mark{Name: "mark", Shelf: shelf, Collection: collection}
+	mark := &Mark{Title: "mark", Shelf: shelf, Collection: collection}
 	collection.AddMark(mark)
 
 	mark.RecordDelete()
@@ -881,21 +915,21 @@ func TestMarkRecordDelete(t *testing.T) {
 
 func TestUpdateMarkClearsTags(t *testing.T) {
 	m := &Mark{
-		ID:   GenerateID("https://example.com"),
-		Name: "Old",
-		URL:  "https://example.com",
-		Tags: []string{"a", "b"},
+		ID:    GenerateID("https://example.com"),
+		Title: "Old",
+		URL:   "https://example.com",
+		Tags:  []string{"a", "b"},
 	}
 
-	if err := m.UpdateMark("", "", []string{}); err != nil {
+	if err := m.Update("", "", []string{}); err != nil {
 		t.Fatalf("UpdateMark error: %v", err)
 	}
 	if len(m.Tags) != 0 {
 		t.Errorf("Tags = %v, want empty", m.Tags)
 	}
 
-	if err := m.UpdateMark("", "", nil); err != nil {
-		t.Fatalf("UpdateMark nil error: %v", err)
+	if err := m.Update("", "", nil); err != nil {
+		t.Fatalf("Update nil error: %v", err)
 	}
 	if len(m.Tags) != 0 {
 		t.Errorf("Tags = %v, want still empty after nil", m.Tags)
@@ -912,7 +946,7 @@ func TestMarshalCatalog(t *testing.T) {
 		name    string
 		format  string
 		want    string
-		wantNil bool
+		wantErr bool
 	}{
 		{
 			name:   "json",
@@ -925,23 +959,28 @@ func TestMarshalCatalog(t *testing.T) {
 			want:   "name = \"example\"\ntags = [\"a\", \"b\"]\n",
 		},
 		{
-			name:    "empty format returns nil",
+			name:    "empty format",
 			format:  "",
-			wantNil: true,
+			wantErr: true,
+		},
+		{
+			name:    "unknown format",
+			format:  "yaml",
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := MarshalCatalog(item, tt.format)
-			if err != nil {
-				t.Fatalf("MarshalCatalog error: %v", err)
-			}
-			if tt.wantNil {
-				if got != nil {
-					t.Errorf("got %q, want nil", got)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("MarshalCatalog(%q) expected error, got %q", tt.format, got)
 				}
 				return
+			}
+			if err != nil {
+				t.Fatalf("MarshalCatalog error: %v", err)
 			}
 			if string(got) != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
