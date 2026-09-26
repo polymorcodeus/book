@@ -344,7 +344,9 @@ func (ix *Index) CollectionNames(shelfName string) ([]string, error) {
 }
 
 // Collection returns a reconstructed collection (with marks and tags) for the
-// named shelf and collection. Soft-deleted marks are excluded.
+// named shelf and collection. Soft-deleted marks are excluded. The returned
+// collection and its marks have their Shelf and Collection back-pointers wired,
+// matching the BookShelves finders.
 func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection, error) {
 	var shelfID string
 	err := ix.db.QueryRow(`SELECT shelf_id FROM shelves WHERE name = ?`, shelfName).Scan(&shelfID)
@@ -355,7 +357,8 @@ func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection,
 		return nil, err
 	}
 
-	col := &book.Collection{}
+	shelf := &book.Shelf{ID: shelfID, Name: shelfName}
+	col := &book.Collection{Shelf: shelf}
 	err = ix.db.QueryRow(`
 		SELECT collection_id, name, description, created_at, updated_at
 		FROM collections
@@ -379,8 +382,8 @@ func (ix *Index) Collection(shelfName, collectionName string) (*book.Collection,
 
 	var marks []*book.Mark
 	for rows.Next() {
-		m := &book.Mark{}
-		if err := rows.Scan(&m.ID, &m.Name, &m.URL, &m.CreatedAt, &m.UpdatedAt, &m.DeletedAt); err != nil {
+		m := &book.Mark{Shelf: shelf, Collection: col}
+		if err := rows.Scan(&m.ID, &m.Title, &m.URL, &m.CreatedAt, &m.UpdatedAt, &m.DeletedAt); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
@@ -721,10 +724,10 @@ func insertShelf(tx *sql.Tx, s *book.Shelf) error {
 			if _, err := tx.Exec(`
 				INSERT INTO marks (catalog_id, collection_id, title, url, created_at, updated_at, deleted_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				m.ID, c.ID, m.Name, m.URL, m.CreatedAt, m.UpdatedAt, m.DeletedAt); err != nil {
+				m.ID, c.ID, m.Title, m.URL, m.CreatedAt, m.UpdatedAt, m.DeletedAt); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(`INSERT INTO marks_fts (title, url, catalog_id) VALUES (?, ?, ?)`, m.Name, m.URL, m.ID); err != nil {
+			if _, err := tx.Exec(`INSERT INTO marks_fts (title, url, catalog_id) VALUES (?, ?, ?)`, m.Title, m.URL, m.ID); err != nil {
 				return err
 			}
 			for _, tag := range m.Tags {

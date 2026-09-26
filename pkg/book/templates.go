@@ -1,48 +1,5 @@
 package book
 
-// Templatable defines the view-model interface used to render TUI success screens.
-type Templatable interface {
-	Primary() string
-	Secondary() string
-	List() []string
-}
-
-// Primary returns an empty string for BookShelves.
-func (bs *BookShelves) Primary() string { return "" }
-
-// Secondary returns an empty string for BookShelves.
-func (bs *BookShelves) Secondary() string { return "" }
-
-// List returns the names of all shelves.
-func (bs *BookShelves) List() []string { return bs.ShelfNames() }
-
-// Primary returns the shelf name.
-func (s *Shelf) Primary() string { return s.Name }
-
-// Secondary returns an empty string for Shelf.
-func (s *Shelf) Secondary() string { return "" }
-
-// List returns the names of all collections in the shelf.
-func (s *Shelf) List() []string { return s.CollectionsNames() }
-
-// Primary returns the parent shelf name.
-func (c *Collection) Primary() string { return c.Shelf.Name }
-
-// Secondary returns the collection name.
-func (c *Collection) Secondary() string { return c.Name }
-
-// List returns the names of all marks in the collection.
-func (c *Collection) List() []string { return c.MarksNames() }
-
-// Primary returns the mark title.
-func (m *Mark) Primary() string { return m.Name }
-
-// Secondary returns the mark URL.
-func (m *Mark) Secondary() string { return m.URL }
-
-// List returns the mark's tags.
-func (m *Mark) List() []string { return m.Tags }
-
 // ViewTemplate used to templatize TUI success screens
 type ViewTemplate struct {
 	PrimaryTitle   string `json:"primary_title,omitempty"`

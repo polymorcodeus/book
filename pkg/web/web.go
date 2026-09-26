@@ -18,7 +18,10 @@ import (
 // ErrTitleUnavailable is returned when a page title cannot be fetched
 // automatically (e.g. HTTP 403 or an empty <title> tag). Callers should
 // prompt the user to enter a title manually.
-var ErrTitleUnavailable = errors.New("couldn't fetch title")
+var ErrTitleUnavailable = errors.New("web: couldn't fetch title")
+
+// ErrNotFound is returned when the page responds with HTTP 404.
+var ErrNotFound = errors.New("web: not found")
 
 // OpenURL opens the given URL in the default browser.
 func OpenURL(url string) error {
@@ -61,8 +64,8 @@ func WebsiteTitle(ctx context.Context, url string) (string, error) {
 	case http.StatusForbidden:
 		return "", ErrTitleUnavailable
 	case http.StatusNotFound:
-		return "", fmt.Errorf("betta check yerself - that's a 4oh4!\n%s", url)
+		return "", fmt.Errorf("fetch title: %w: %s", ErrNotFound, url)
 	default:
-		return "", fmt.Errorf("unchecked error: %d", res.StatusCode)
+		return "", fmt.Errorf("fetch title: unexpected status %d", res.StatusCode)
 	}
 }

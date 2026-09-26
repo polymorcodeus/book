@@ -79,7 +79,7 @@ func marks(cache *indexCache, bs *book.BookShelves, shelfName string, collection
 				if m.IsDeleted() {
 					continue
 				}
-				fmt.Printf("%s %s\n", m.Name, m.URL)
+				fmt.Printf("%s %s\n", m.Title, m.URL)
 			}
 			return nil
 		}
@@ -109,12 +109,13 @@ func editMark(bs *book.BookShelves, id, title, tags, url string, config *theme.U
 		if err := book.ValidateURL(url); err != nil {
 			return err
 		}
-		if err := bs.VerifyUniqueURL(book.GenerateID(url), target); err != nil {
-			return fmt.Errorf("verify unique url: %w", err)
+		id := book.GenerateID(url)
+		if err := bs.VerifyUniqueURL(id, target); err != nil {
+			return uniqueURLError(bs, id, err)
 		}
 	}
 
-	if err := target.UpdateMark(title, url, book.SplitTags(tags)); err != nil {
+	if err := target.Update(title, url, book.SplitTags(tags)); err != nil {
 		return err
 	}
 	target.Touch()
@@ -150,6 +151,33 @@ func searchMarks(cache *indexCache, query string, tags string, shelfName string,
 	}
 }
 
+func websiteError(err error, url string) error {
+	if errors.Is(err, web.ErrNotFound) {
+		return fmt.Errorf("betta check yerself - that's a 4oh4!\n%s", url)
+	}
+	return fmt.Errorf("load website: %w", err)
+}
+
+// uniqueURLError annotates a VerifyUniqueURL failure with the restore command
+// when the collision is with a trashed mark.
+func uniqueURLError(bs *book.BookShelves, id string, err error) error {
+	if errors.Is(err, book.ErrURLTrashed) {
+		if trashed := bs.SoftDeletedByID(id); trashed != nil {
+			return fmt.Errorf("verify unique url: %w\n\nrestore it with:\nbook mark restore --id %s", err, trashed.ID)
+		}
+	}
+	return fmt.Errorf("verify unique url: %w", err)
+}
+
+// titleError annotates a ResolveMarkTitle failure with the flag a
+// non-interactive caller needs to supply the title manually.
+func titleError(err error) error {
+	if errors.Is(err, book.ErrTitleRequired) {
+		return fmt.Errorf("%w; provide --title", err)
+	}
+	return err
+}
+
 func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string, shelfName string, collectionName string, title string, config *theme.UIConfig) error {
 	mark, err := book.NewMarkFromInput(URL, book.SplitTags(tags))
 	if err != nil {
@@ -158,7 +186,7 @@ func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string,
 
 	// Ensure URL hash not in bookshelves
 	if err := bs.VerifyUniqueURL(mark.ID, nil); err != nil {
-		return fmt.Errorf("verify unique url: %w", err)
+		return uniqueURLError(bs, mark.ID, err)
 	}
 
 	// Use provided title or fetch from URL
@@ -166,17 +194,18 @@ func addMark(ctx context.Context, bs *book.BookShelves, URL string, tags string,
 	if title == "" {
 		fetchedTitle, err := loadWebsite(ctx, mark.URL)
 		if err != nil {
-			if !errors.Is(err, web.ErrTitleUnavailable) {
-				return fmt.Errorf("load website: %w", err)
+			if errors.Is(err, web.ErrTitleUnavailable) {
+				fetched.Unavailable = true
+			} else {
+				return websiteError(err, mark.URL)
 			}
-			fetched.Unavailable = true
 		} else {
 			fetched.Title = fetchedTitle
 		}
 	}
-	mark.Name, err = book.ResolveMarkTitle(title, mark.URL, fetched, config.Interactive)
+	mark.Title, err = book.ResolveMarkTitle(title, mark.URL, fetched, config.Interactive)
 	if err != nil {
-		return err
+		return titleError(err)
 	}
 
 	// Non-interactive path: all required flags provided

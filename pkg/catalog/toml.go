@@ -19,7 +19,7 @@ func VerifyExists(filename string) (bool, error) {
 	}
 
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil // File does exist
+		return false, nil // File does not exist
 	}
 	return false, err // remaining errors
 }
@@ -94,7 +94,7 @@ func EnsureConfig(c *book.Config) error {
 		return nil
 	}
 	if !c.Autoconfirm {
-		return fmt.Errorf("%s", fmt.Sprintf("set --confirm to create config file %s", c.ConfigFile))
+		return fmt.Errorf("config file %s does not exist; set --confirm to create it", c.ConfigFile)
 	}
 
 	fileCfg := &book.FileConfig{

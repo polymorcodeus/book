@@ -5,12 +5,12 @@ import (
 )
 
 // mark returns a Mark with back-pointers wired to the given shelf and collection.
-func testMark(s *Shelf, c *Collection, id, name, url string, tags []string) *Mark {
+func testMark(s *Shelf, c *Collection, id, title, url string, tags []string) *Mark {
 	return &Mark{
 		Shelf:      s,
 		Collection: c,
 		ID:         id,
-		Name:       name,
+		Title:      title,
 		URL:        url,
 		Tags:       tags,
 	}

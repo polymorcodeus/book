@@ -222,7 +222,7 @@ paths := catalog.Paths{ShelfRoot: "/path/to/shelf.d", CatalogFormat: "toml"}
 shelf, _ := book.NewShelf("work", "work stuff")
 collection, _ := book.NewCollection(shelf, "golang", "go links")
 mark, _ := book.NewMarkFromInput("https://go.dev", book.SplitTags("lang,official"))
-mark.Name = "The Go Programming Language"
+mark.Title = "The Go Programming Language"
 mark.Shelf = shelf
 mark.Collection = collection
 mark.RecordAdd()

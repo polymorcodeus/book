@@ -27,7 +27,7 @@ cmd/book/
 pkg/book/
 ├── types.go         # Core data structs: Config, BookShelves, Shelf, Collection, Mark
 ├── doctor.go        # MarkConflict, DetectDuplicates, ResolveDuplicates
-└── templates.go     # ViewTemplate, DefaultViewTemplates, Templatable helpers
+└── templates.go     # ViewTemplate, DefaultViewTemplates
 
 pkg/catalog/
 ├── catalog.go       # Paths, ShelfPath, VerifyExists, LoadShelves

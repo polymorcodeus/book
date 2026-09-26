@@ -117,7 +117,7 @@ func TestIndexStaleFiles(t *testing.T) {
 
 	// Modifying the file marks it stale again.
 	s.Collections["golang"].Marks = append(s.Collections["golang"].Marks,
-		&book.Mark{ID: book.GenerateID("https://example.com"), Name: "New", URL: "https://example.com"})
+		&book.Mark{ID: book.GenerateID("https://example.com"), Title: "New", URL: "https://example.com"})
 	writeShelfFile(t, paths, s)
 	stale, err = ix.StaleFiles(paths)
 	if err != nil {

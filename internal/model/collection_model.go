@@ -124,7 +124,10 @@ func (m getCollectionModel) ResultView() string {
 	if m.get.book.form.State != huh.StateCompleted || m.get.book.err != nil || m.action != "list" {
 		return ""
 	}
-	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "collection-list", m.get.shelf).Content
+	return renderCompletedView(m.get.book.styles, m.get.book.tmpls, "collection-list", viewData{
+		Primary: m.get.shelf.Name,
+		List:    m.get.shelf.CollectionNames(),
+	}).Content
 }
 
 // Error returns the terminal error, if any, for the caller to surface after
@@ -166,7 +169,7 @@ func GetCollectionForm(bs *book.BookShelves, config *theme.UIConfig, action stri
 					if shelf == nil {
 						return []huh.Option[string]{}
 					}
-					return huh.NewOptions(shelf.CollectionsNames()...)
+					return huh.NewOptions(shelf.CollectionNames()...)
 				}, &chosenShelf).
 				Key("collection").
 				Value(&chosenCollection),
@@ -311,7 +314,10 @@ func (m editCollectionModel) ResultView() string {
 	if m.editor.book.form.State != huh.StateCompleted || m.editor.book.err != nil {
 		return ""
 	}
-	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "collection-add", m.editor.collection).Content
+	return renderCompletedView(m.editor.book.styles, m.editor.book.tmpls, "collection-add", viewData{
+		Primary:   m.editor.collection.Shelf.Name,
+		Secondary: m.editor.collection.Name,
+	}).Content
 }
 
 // Error returns the terminal error, if any, for the caller to surface after
